@@ -9,6 +9,7 @@ router.register(r'delivery',views.deliveristaView,'delivery')
 router.register(r'producto',views.productoView,'producto')
 router.register(r'retorno', views.retornoView, 'retorno')
 router.register(r'retorno_res',views.RetornoViewRes,'retorno-res')
+router.register('dashboard', views.DashboardViewSet, 'dashboard')
 
 urlpatterns = [
     path('api/v1/', include(router.urls)),

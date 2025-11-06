@@ -6,7 +6,10 @@ export function loadRetorno(foreignKey) {
   return axios.get(`${API_BASE}/${foreignKey}`);
 }
 
-// ⭐ NUEVA: Función para actualización parcial (PATCH)
+export function loadRetornoAll() {
+  return axios.get(API_BASE);
+}
+
 export function updateRetorno(retornoId, updateData) {
   return axios.patch(`${API_BASE}/${retornoId}/`, updateData);
 }
