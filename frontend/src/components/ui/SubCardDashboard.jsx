@@ -1,6 +1,6 @@
 function SubCardDashboard({ p, p1, p2, p3 }) {
   const state = {
-    Completado: "text-green-800 bg-green-200 px-2 rounded-2xl",
+    Completada: "text-green-800 bg-green-200 px-2 rounded-2xl",
     "En ruta": "text-blue-800 bg-blue-200 px-2 rounded-2xl",
     Tiempo: "text-gray-500",
   };
