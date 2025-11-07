@@ -2,7 +2,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from django_filters.rest_framework import DjangoFilterBackend
 from . import models,serializer
 
@@ -88,3 +88,87 @@ class RetornoViewRes(viewsets.ModelViewSet):
         
         Nserializer = serializer.DataCaja(data)
         return Response(Nserializer.data)
+    
+
+class TrabajadorViewSet(viewsets.ModelViewSet):
+    queryset = models.Trabajador.objects.select_related(
+        'id_persona', 
+        'id_tipo_trabajador', 
+        'id_horario'
+    ).all()
+    
+    def get_serializer_class(self):
+        """Retorna el serializer apropiado según la acción"""
+        if self.action == 'list':
+            return serializer.TrabajadorListSerializer
+        elif self.action == 'retrieve':
+            return serializer.TrabajadorReadSerializer
+        elif self.action == 'create':
+            return serializer.TrabajadorCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return serializer.TrabajadorUpdateSerializer
+        return serializer.TrabajadorReadSerializer
+    
+    def create(self, request, *args, **kwargs):
+        """Crear trabajador con persona"""
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        trabajador = ser.save()
+        
+        # Retornar con el serializer de lectura
+        read_serializer = serializer.TrabajadorReadSerializer(trabajador)
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar trabajador y persona"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        ser = self.get_serializer(instance, data=request.data, partial=partial)
+        ser.is_valid(raise_exception=True)
+        trabajador = ser.save()
+        
+        # Retornar con el serializer de lectura
+        read_serializer = serializer.TrabajadorReadSerializer(trabajador)
+        return Response(read_serializer.data)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Eliminar trabajador"""
+        instance = self.get_object()
+        persona = instance.id_persona
+        
+        # Eliminar trabajador
+        self.perform_destroy(instance)
+        
+        # Opcional: Eliminar también la persona si no tiene otros registros asociados
+        # if not models.Trabajador.objects.filter(id_persona=persona).exists():
+        #     persona.delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=False, methods=['get'])
+    def por_tipo(self, request):
+        """Filtrar trabajadores por tipo"""
+        tipo_id = request.query_params.get('tipo_id', None)
+        if tipo_id:
+            trabajadores = self.queryset.filter(id_tipo_trabajador=tipo_id)
+            ser = serializer.TrabajadorListSerializer(trabajadores, many=True)
+            return Response(ser.data)
+        return Response(
+            {"error": "Debe proporcionar tipo_id como parámetro"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    @action(detail=True, methods=['get'])
+    def detalle_completo(self, request, pk=None):
+        """Obtener detalle completo del trabajador"""
+        trabajador = self.get_object()
+        ser = serializer.TrabajadorReadSerializer(trabajador)
+        return Response(ser.data)
+    
+class TipoTrabajadorViewSet(viewsets.ModelViewSet):
+    queryset = models.TipoTrabajador.objects.all()
+    serializer_class = serializer.TipoTrabajadorSerializer
+
+class HorarioViewSet(viewsets.ModelViewSet):
+    queryset = models.Horario.objects.all()
+    serializer_class = serializer.HorarioSerializer

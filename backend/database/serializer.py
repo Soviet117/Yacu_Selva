@@ -157,3 +157,148 @@ class DataCaja(serializers.Serializer):
     total_hoy = serializers.DecimalField(max_digits=10, decimal_places=2)
     total_repartidores = serializers.DecimalField(max_digits=10, decimal_places=2)
     total_no_repartidores = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class TrabajadorReadSerializer(serializers.ModelSerializer):
+    # Datos de la persona
+    nombre_completo = serializers.SerializerMethodField()
+    nombre_p = serializers.CharField(source='id_persona.nombre_p', read_only=True)
+    apellido_p = serializers.CharField(source='id_persona.apellido_p', read_only=True)
+    dni_p = serializers.CharField(source='id_persona.dni_p', read_only=True)
+    direccion = serializers.CharField(source='id_persona.direccion', read_only=True)
+    url_dni = serializers.CharField(source='id_persona.url_dni', read_only=True)
+    
+    # Datos del tipo de trabajador
+    tipo_trabajador = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
+    
+    # Datos del horario
+    entrada = serializers.TimeField(source='id_horario.entrada', read_only=True)
+    salida = serializers.TimeField(source='id_horario.salida', read_only=True)
+    inicio_break = serializers.TimeField(source='id_horario.inicio_break', read_only=True)
+    fin_break = serializers.TimeField(source='id_horario.fin_break', read_only=True)
+    
+    class Meta:
+        model = models.Trabajador
+        fields = [
+            'id_trabajador', 'nombre_completo', 'nombre_p', 'apellido_p', 
+            'dni_p', 'direccion', 'url_dni', 'tipo_trabajador', 
+            'entrada', 'salida', 'inicio_break', 'fin_break', 'sueldo'
+        ]
+    
+    def get_nombre_completo(self, obj):
+        return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"
+
+
+# Serializer para crear Trabajador (POST)
+class TrabajadorCreateSerializer(serializers.ModelSerializer):
+    # Campos de persona (anidados)
+    nombre_p = serializers.CharField(write_only=True)
+    apellido_p = serializers.CharField(write_only=True)
+    dni_p = serializers.CharField(write_only=True)
+    direccion = serializers.CharField(write_only=True)
+    url_dni = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    
+    class Meta:
+        model = models.Trabajador
+        fields = [
+            'nombre_p', 'apellido_p', 'dni_p', 'direccion', 'url_dni',
+            'id_tipo_trabajador', 'id_horario', 'sueldo'
+        ]
+    
+    def create(self, validated_data):
+        # Extraer datos de persona
+        persona_data = {
+            'nombre_p': validated_data.pop('nombre_p'),
+            'apellido_p': validated_data.pop('apellido_p'),
+            'dni_p': validated_data.pop('dni_p'),
+            'direccion': validated_data.pop('direccion'),
+            'url_dni': validated_data.pop('url_dni', ''),
+        }
+        
+        # Crear la persona primero
+        persona = models.Persona.objects.create(**persona_data)
+        
+        # Crear el trabajador con la persona creada
+        trabajador = models.Trabajador.objects.create(
+            id_persona=persona,
+            **validated_data
+        )
+        
+        return trabajador
+    
+    def validate_dni_p(self, value):
+        """Validar que el DNI no exista"""
+        if models.Persona.objects.filter(dni_p=value).exists():
+            raise serializers.ValidationError("Ya existe una persona con este DNI.")
+        return value
+
+
+# Serializer para actualizar Trabajador (PUT/PATCH)
+class TrabajadorUpdateSerializer(serializers.ModelSerializer):
+    # Campos de persona (anidados)
+    nombre_p = serializers.CharField(required=False)
+    apellido_p = serializers.CharField(required=False)
+    dni_p = serializers.CharField(required=False)
+    direccion = serializers.CharField(required=False)
+    url_dni = serializers.CharField(required=False, allow_blank=True)
+    
+    class Meta:
+        model = models.Trabajador
+        fields = [
+            'nombre_p', 'apellido_p', 'dni_p', 'direccion', 'url_dni',
+            'id_tipo_trabajador', 'id_horario', 'sueldo'
+        ]
+    
+    def update(self, instance, validated_data):
+        # Extraer datos de persona si existen
+        persona_data = {}
+        persona_fields = ['nombre_p', 'apellido_p', 'dni_p', 'direccion', 'url_dni']
+        
+        for field in persona_fields:
+            if field in validated_data:
+                persona_data[field] = validated_data.pop(field)
+        
+        # Actualizar datos de persona si hay cambios
+        if persona_data:
+            persona = instance.id_persona
+            for attr, value in persona_data.items():
+                setattr(persona, attr, value)
+            persona.save()
+        
+        # Actualizar datos del trabajador
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        return instance
+    
+    def validate_dni_p(self, value):
+        """Validar que el DNI no exista en otra persona"""
+        persona_actual = self.instance.id_persona
+        if models.Persona.objects.filter(dni_p=value).exclude(id_persona=persona_actual.id_persona).exists():
+            raise serializers.ValidationError("Ya existe una persona con este DNI.")
+        return value
+
+
+# Serializer simple para listados (opcional)
+class TrabajadorListSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    tipo_trabajador = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
+    dni = serializers.CharField(source='id_persona.dni_p', read_only=True)
+    
+    class Meta:
+        model = models.Trabajador
+        fields = ['id_trabajador', 'nombre_completo', 'dni', 'tipo_trabajador', 'sueldo']
+    
+    def get_nombre_completo(self, obj):
+        return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"
+    
+class TipoTrabajadorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.TipoTrabajador
+        fields = ['id_tipo_trabajador', 'nom_tt']
+
+class HorarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Horario
+        fields = ['id_horario', 'entrada', 'salida', 'inicio_break', 'fin_break']
