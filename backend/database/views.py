@@ -2,7 +2,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from django_filters.rest_framework import DjangoFilterBackend
 from . import models,serializer
 
@@ -89,106 +89,86 @@ class RetornoViewRes(viewsets.ModelViewSet):
         Nserializer = serializer.DataCaja(data)
         return Response(Nserializer.data)
     
-class DashboardViewSet(viewsets.ViewSet):
+
+class TrabajadorViewSet(viewsets.ModelViewSet):
+    queryset = models.Trabajador.objects.select_related(
+        'id_persona', 
+        'id_tipo_trabajador', 
+        'id_horario'
+    ).all()
     
-    def list(self, request):
-        return self.estadisticas_principales(request)
+    def get_serializer_class(self):
+        """Retorna el serializer apropiado según la acción"""
+        if self.action == 'list':
+            return serializer.TrabajadorListSerializer
+        elif self.action == 'retrieve':
+            return serializer.TrabajadorReadSerializer
+        elif self.action == 'create':
+            return serializer.TrabajadorCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return serializer.TrabajadorUpdateSerializer
+        return serializer.TrabajadorReadSerializer
+    
+    def create(self, request, *args, **kwargs):
+        """Crear trabajador con persona"""
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        trabajador = ser.save()
+        
+        # Retornar con el serializer de lectura
+        read_serializer = serializer.TrabajadorReadSerializer(trabajador)
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar trabajador y persona"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        ser = self.get_serializer(instance, data=request.data, partial=partial)
+        ser.is_valid(raise_exception=True)
+        trabajador = ser.save()
+        
+        # Retornar con el serializer de lectura
+        read_serializer = serializer.TrabajadorReadSerializer(trabajador)
+        return Response(read_serializer.data)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Eliminar trabajador"""
+        instance = self.get_object()
+        persona = instance.id_persona
+        
+        # Eliminar trabajador
+        self.perform_destroy(instance)
+        
+        # Opcional: Eliminar también la persona si no tiene otros registros asociados
+        # if not models.Trabajador.objects.filter(id_persona=persona).exists():
+        #     persona.delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
     @action(detail=False, methods=['get'])
-    def estadisticas_principales(self, request):
-        hoy = timezone.now().date()
-        ayer = hoy - timezone.timedelta(days=1)
-        
-        # 1. ENTREGAS HOY
-        entregas_hoy = models.Salida.objects.filter(fecha=hoy).count()
-        entregas_ayer = models.Salida.objects.filter(fecha=ayer).count()
-        crecimiento_entregas = self._calcular_crecimiento(entregas_hoy, entregas_ayer)
-        
-        # 2. INGRESOS HOY
-        ingresos_hoy = models.Venta.objects.filter(fecha=hoy).aggregate(
-            total=Sum('total_cancelado')
-        )['total'] or 0
-        
-        ingresos_ayer = models.Venta.objects.filter(fecha=ayer).aggregate(
-            total=Sum('total_cancelado')
-        )['total'] or 0
-        crecimiento_ingresos = self._calcular_crecimiento(ingresos_hoy, ingresos_ayer)
-        
-        # 3. TRABAJADORES
-        total_trabajadores = models.Trabajador.objects.count()
-        trabajadores_activos = models.User.objects.filter(estado=True).count()
-        estado_trabajadores = "Todos activos" if trabajadores_activos == total_trabajadores else f"{trabajadores_activos} activos"
-        
-        data = {
-            'entregas_hoy': entregas_hoy,
-            'crecimiento_entregas': crecimiento_entregas,
-            'ingresos_hoy': ingresos_hoy,
-            'crecimiento_ingresos': crecimiento_ingresos,
-            'total_trabajadores': total_trabajadores,
-            'trabajadores_activos': trabajadores_activos,
-            'estado_trabajadores': estado_trabajadores
-        }
-        
-        # ✅ CORREGIR: Usar serializer.DashboardSerializer (con import correcto)
-        dashboard_serializer = serializer.DashboardSerializer(data)
-        return Response(dashboard_serializer.data)
+    def por_tipo(self, request):
+        """Filtrar trabajadores por tipo"""
+        tipo_id = request.query_params.get('tipo_id', None)
+        if tipo_id:
+            trabajadores = self.queryset.filter(id_tipo_trabajador=tipo_id)
+            ser = serializer.TrabajadorListSerializer(trabajadores, many=True)
+            return Response(ser.data)
+        return Response(
+            {"error": "Debe proporcionar tipo_id como parámetro"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
     
-    def _calcular_crecimiento(self, valor_hoy, valor_ayer):
-        if valor_ayer == 0:
-            return "+100%" if valor_hoy > 0 else "0%"
-        
-        crecimiento = ((valor_hoy - valor_ayer) / valor_ayer) * 100
-        signo = "+" if crecimiento > 0 else ""
-        return f"{signo}{crecimiento:.0f}%"
+    @action(detail=True, methods=['get'])
+    def detalle_completo(self, request, pk=None):
+        """Obtener detalle completo del trabajador"""
+        trabajador = self.get_object()
+        ser = serializer.TrabajadorReadSerializer(trabajador)
+        return Response(ser.data)
     
-    @action(detail=False, methods=['get'])
-    def performance_entregas(self, request):
-        from datetime import timedelta
-        
-        hoy = timezone.now().date()
-        ultimos_7_dias = [hoy - timedelta(days=i) for i in range(6, -1, -1)]
-        
-        datos_performance = []
-        
-        for fecha in ultimos_7_dias:
-            # ENTREGAS PROGRAMADAS (Total de salidas del día)
-            entregas_programadas = models.Salida.objects.filter(fecha=fecha).count()
-            
-            # ENTREGAS COMPLETADAS (Salidas con estado = completado)
-            entregas_completadas = models.Salida.objects.filter(
-                fecha=fecha,
-                id_estado_salida=2  # Asumiendo que 2 = Completado
-            ).count()
-            
-            # RETORNOS (Productos que volvieron)
-            retornos = models.Retorno.objects.filter(
-                id_salida__fecha=fecha
-            ).aggregate(
-                total_retornos=Sum('cantidad')
-            )['total_retornos'] or 0
-            
-            # MONTO PENDIENTE DE COBRAR
-            monto_pendiente = models.Salida.objects.filter(
-                fecha=fecha,
-                id_estado_pago__in=[2, 3]  # Pendiente o Parcial
-            ).aggregate(
-                total=Sum('total_cancelar')
-            )['total'] or 0
-            
-            # CÁLCULO DE EFICIENCIA
-            eficiencia = 0
-            if entregas_programadas > 0:
-                eficiencia = (entregas_completadas / entregas_programadas) * 100
-            
-            datos_performance.append({
-                'fecha': fecha,
-                'entregas_programadas': entregas_programadas,
-                'entregas_completadas': entregas_completadas,
-                'retornos': retornos,
-                'eficiencia': round(eficiencia, 1),
-                'monto_pendiente': float(monto_pendiente)
-            })
-        
-        # ✅ SOLO CAMBIA ESTAS 2 LÍNEAS:
-        performance_serializer = serializer.PerformanceEntregasSerializer(datos_performance, many=True)
-        return Response(performance_serializer.data)
+class TipoTrabajadorViewSet(viewsets.ModelViewSet):
+    queryset = models.TipoTrabajador.objects.all()
+    serializer_class = serializer.TipoTrabajadorSerializer
+
+class HorarioViewSet(viewsets.ModelViewSet):
+    queryset = models.Horario.objects.all()
+    serializer_class = serializer.HorarioSerializer
