@@ -302,3 +302,24 @@ class HorarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Horario
         fields = ['id_horario', 'entrada', 'salida', 'inicio_break', 'fin_break']
+
+
+class DashboardSerializer(serializers.Serializer):
+   
+    entregas_hoy = serializers.IntegerField()
+    crecimiento_entregas = serializers.CharField()
+ 
+    ingresos_hoy = serializers.DecimalField(max_digits=10, decimal_places=2)
+    crecimiento_ingresos = serializers.CharField()
+    
+    total_trabajadores = serializers.IntegerField()
+    trabajadores_activos = serializers.IntegerField()
+    estado_trabajadores = serializers.CharField() 
+
+class PerformanceEntregasSerializer(serializers.Serializer):
+    fecha = serializers.DateField()
+    entregas_programadas = serializers.IntegerField()
+    entregas_completadas = serializers.IntegerField()
+    retornos = serializers.IntegerField()
+    eficiencia = serializers.FloatField()  # Porcentaje de efectividad
+    monto_pendiente = serializers.DecimalField(max_digits=10, decimal_places=2)

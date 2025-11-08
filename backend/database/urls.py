@@ -10,7 +10,7 @@ router.register(r'producto',views.productoView,'producto')
 router.register(r'retorno', views.retornoView, 'retorno')
 router.register(r'retorno_res',views.RetornoViewRes,'retorno-res')
 router.register(r'trabajadores', views.TrabajadorViewSet, 'trabajador')
-
+router.register(r'dashboard', views.DashboardViewSet, 'dashboard')
 router.register(r'tipos-trabajador', views.TipoTrabajadorViewSet, 'tipo-trabajador')
 router.register(r'horarios', views.HorarioViewSet, 'horario')
 
