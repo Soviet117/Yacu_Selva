@@ -323,3 +323,11 @@ class PerformanceEntregasSerializer(serializers.Serializer):
     retornos = serializers.IntegerField()
     eficiencia = serializers.FloatField()  # Porcentaje de efectividad
     monto_pendiente = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+class ReporteFechasSerializer(serializers.Serializer):
+    fecha_inicio = serializers.DateField(required=False)
+    fecha_fin = serializers.DateField(required=False)
+    tipo_reporte = serializers.ChoiceField(
+        choices=['diario', 'semanal', 'mensual'],
+        required=True
+    )

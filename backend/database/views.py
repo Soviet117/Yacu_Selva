@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status
 from django_filters.rest_framework import DjangoFilterBackend
 from . import models,serializer
+from django.http import HttpResponse    
 
 class personaView(viewsets.ModelViewSet):
     queryset = models.Persona.objects.all()
@@ -19,7 +20,6 @@ class salidaView(viewsets.ModelViewSet):
         return serializer.SalidaReadSerializer
 
 class deliveristaView(viewsets.ModelViewSet):
-    #queryset = models.Trabajador.objects.filter(id_tipo_trabajador__id_tipo_trabajador = 3)
     queryset = models.Trabajador.objects.all()
     serializer_class = serializer.DeliveristaSerializer
 
@@ -277,3 +277,63 @@ class DashboardViewSet(viewsets.ViewSet):
         performance_serializer = serializer.PerformanceEntregasSerializer(datos_performance, many=True)
         return Response(performance_serializer.data)
 
+# views.py - Agrega esta clase
+
+
+# views.py - REEMPLAZA tu ReportesViewSet con esta versión corregida
+class ReportesViewSet(viewsets.ViewSet):
+    
+    @action(detail=False, methods=['post'])
+    def generar_reporte(self, request):
+        try:
+            print("🎯 INICIANDO GENERACIÓN DE REPORTE...")
+            
+            # ✅ CORREGIDO: Cambiar nombre de variable
+            from . import serializer as app_serializer
+            reporte_serializer = app_serializer.ReporteFechasSerializer(data=request.data)
+            
+            if not reporte_serializer.is_valid():
+                print("❌ Error de validación:", reporte_serializer.errors)
+                return Response(reporte_serializer.errors, status=400)
+            
+            data = reporte_serializer.validated_data
+            tipo_reporte = data.get('tipo_reporte')
+            print(f"📊 Tipo de reporte recibido: {tipo_reporte}")
+            
+            # Crear un Excel simple
+            from openpyxl import Workbook
+            
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Reporte YacuSelva"
+            
+            # Datos básicos
+            ws['A1'] = "REPORTE YACU SELVA"
+            ws['A2'] = f"Tipo: {tipo_reporte.upper()}"
+            ws['A3'] = f"Fecha: {timezone.now().date()}"
+            ws['A5'] = "Métricas:"
+            ws['A6'] = "Total Ventas Hoy"
+            ws['B6'] = models.Venta.objects.filter(fecha=timezone.now().date()).count()
+            ws['A7'] = "Total Entregas Hoy" 
+            ws['B7'] = models.Salida.objects.filter(fecha=timezone.now().date()).count()
+            ws['A8'] = "Trabajadores Activos"
+            ws['B8'] = models.User.objects.filter(estado=True).count()
+            
+            # Preparar respuesta
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="reporte_{tipo_reporte}.xlsx"'
+            
+            wb.save(response)
+            print("✅ REPORTE GENERADO EXITOSAMENTE!")
+            return response
+            
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
+            import traceback
+            print(f"❌ TRACEBACK: {traceback.format_exc()}")
+            return Response(
+                {"error": f"Error interno: {str(e)}"}, 
+                status=500
+            )
