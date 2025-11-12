@@ -8,7 +8,12 @@ import { FormularioEditarTrabajador } from "../components/ui/FormularioEditarTra
 import { BotonesAccion } from "../components/ui/BotonesAccion";
 import { Buscador } from "../components/ui/Buscador";
 import TablaTrabajadores from "../components/ui/TablaTrabajadores";
-import { loadTrabajadores, updateTrabajador, deleteTrabajador, createTrabajador } from "../api/apiTrabajadores";
+import {
+  loadTrabajadores,
+  updateTrabajador,
+  deleteTrabajador,
+  createTrabajador,
+} from "../api/apiTrabajadores";
 
 function Trabajadores() {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -36,7 +41,6 @@ function Trabajadores() {
     sueldo: "",
   });
 
-  // 🔹 Cargar trabajadores desde la BD
   useEffect(() => {
     fetchTrabajadores();
   }, []);
@@ -55,13 +59,11 @@ function Trabajadores() {
     }
   };
 
-  // 🔹 Control de inputs genérico
   const handleInputChange = (e, setter) => {
     const { name, value } = e.target;
     setter((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 🔹 Agregar nuevo trabajador
   const handleAddWorker = async () => {
     try {
       const response = await createTrabajador(formData);
@@ -79,12 +81,15 @@ function Trabajadores() {
     }
   };
 
-  // 🔹 Eliminar trabajador
   const handleDeleteWorker = async () => {
     if (!selectedWorker) return;
     try {
       await deleteTrabajador(selectedWorker.id_trabajador);
-      setTrabajadores(trabajadores.filter((t) => t.id_trabajador !== selectedWorker.id_trabajador));
+      setTrabajadores(
+        trabajadores.filter(
+          (t) => t.id_trabajador !== selectedWorker.id_trabajador
+        )
+      );
       setSelectedWorker(null);
       setShowDeleteModal(false);
     } catch (error) {
@@ -93,7 +98,6 @@ function Trabajadores() {
     }
   };
 
-  // 🔹 Abrir modal de edición con datos del trabajador
   const handleEditWorker = (trabajador) => {
     setEditData({
       id_trabajador: trabajador.id_trabajador,
@@ -105,14 +109,14 @@ function Trabajadores() {
     setShowEditModal(true);
   };
 
-  // 🔹 Actualizar trabajador (PATCH)
   const handleUpdateWorker = async () => {
     try {
       const response = await updateTrabajador(editData.id_trabajador, editData);
-      
-      // Actualizar lista en memoria
+
       setTrabajadores((prev) =>
-        prev.map((t) => (t.id_trabajador === response.data.id_trabajador ? response.data : t))
+        prev.map((t) =>
+          t.id_trabajador === response.data.id_trabajador ? response.data : t
+        )
       );
 
       setShowEditModal(false);
@@ -123,7 +127,6 @@ function Trabajadores() {
     }
   };
 
-  // 🔹 Filtrar trabajadores
   const filteredWorkers = trabajadores.filter(
     (t) =>
       t.nombre_completo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,7 +158,6 @@ function Trabajadores() {
         <TopBar />
         <div className="bg-gray-50 p-6">
           <div className="max-w-7xl mx-auto">
-            {/* Header */}
             <div className="mb-8">
               <h1 className="text-4xl font-bold text-gray-800 mb-2">
                 TRABAJADORES
@@ -163,27 +165,22 @@ function Trabajadores() {
               <p className="text-gray-600">Gestiona tu equipo de trabajo</p>
             </div>
 
-            {/* Botones de acción */}
             <BotonesAccion
               onAgregarClick={() => setShowAddModal(true)}
               onDespedirClick={() => setShowDeleteModal(true)}
             />
 
-            {/* Buscador */}
             <Buscador searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
-            {/* Tabla */}
             <TablaTrabajadores
               trabajadores={filteredWorkers}
               onEdit={handleEditWorker}
             />
 
-            {/* Total */}
             <div className="mt-4 text-gray-600">
               Total de trabajadores: {filteredWorkers.length}
             </div>
 
-            {/* Modal Agregar */}
             <Modal
               isOpen={showAddModal}
               onClose={() => setShowAddModal(false)}
@@ -197,7 +194,6 @@ function Trabajadores() {
               />
             </Modal>
 
-            {/* Modal Despedir */}
             <Modal
               isOpen={showDeleteModal}
               onClose={() => setShowDeleteModal(false)}

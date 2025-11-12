@@ -5,7 +5,8 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status
 from django_filters.rest_framework import DjangoFilterBackend
 from . import models,serializer
-from django.http import HttpResponse    
+from django.http import HttpResponse
+from decimal import Decimal    
 
 class personaView(viewsets.ModelViewSet):
     queryset = models.Persona.objects.all()
@@ -60,24 +61,22 @@ class RetornoViewRes(viewsets.ModelViewSet):
         hoy = timezone.now().date()
         print("Fecha de hoy:", hoy)
         
-        # 👇 FILTRAR por fecha de SALIDA (no de retorno)
         retornos_hoy = models.Retorno.objects.filter(id_salida__fecha=hoy)
-        
-        # Cálculos
+
         total_hoy = retornos_hoy.aggregate(
-            total=Sum('total_cancelado')  # 👈 Cambiar a 'total_cancelado' según tu diagrama
+            total=Sum('total_cancelado')  
         )['total'] or 0
         
         total_repartidores = retornos_hoy.filter(
             id_salida__id_trabajador__id_tipo_trabajador=3
         ).aggregate(
-            total=Sum('total_cancelado')  # 👈 Cambiar aquí también
+            total=Sum('total_cancelado')  
         )['total'] or 0
         
         total_no_repartidores = retornos_hoy.exclude(
             id_salida__id_trabajador__id_tipo_trabajador=3
         ).aggregate(
-            total=Sum('total_cancelado')  # 👈 Y aquí
+            total=Sum('total_cancelado') 
         )['total'] or 0
 
         data = {
@@ -88,6 +87,44 @@ class RetornoViewRes(viewsets.ModelViewSet):
         
         Nserializer = serializer.DataCaja(data)
         return Response(Nserializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def resumen_caja_completo(self, request):
+        hoy = timezone.now().date()
+        
+        retornos_hoy = models.Retorno.objects.filter(id_salida__fecha=hoy)
+        
+        total_hoy = retornos_hoy.aggregate(
+            total=Sum('total_cancelado')
+        )['total'] or 0
+        
+        total_repartidores = retornos_hoy.filter(
+            id_salida__id_trabajador__id_tipo_trabajador=3
+        ).aggregate(
+            total=Sum('total_cancelado')
+        )['total'] or 0
+        
+        total_no_repartidores = retornos_hoy.exclude(
+            id_salida__id_trabajador__id_tipo_trabajador=3
+        ).aggregate(
+            total=Sum('total_cancelado')
+        )['total'] or 0
+
+        total_egresos = models.CajaIe.objects.filter(
+            tipo="egreso",  
+        ).aggregate(
+            total=Sum('nonto')
+        )['total'] or 0
+
+        data = {
+            'total_hoy': float(total_hoy),
+            'total_repartidores': float(total_repartidores),
+            'total_no_repartidores': float(total_no_repartidores),
+            'total_egresos': float(total_egresos),
+            'balance_neto': float(total_hoy - total_egresos)
+        }
+        
+        return Response(data)
     
 
 class TrabajadorViewSet(viewsets.ModelViewSet):
@@ -114,8 +151,7 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
         trabajador = ser.save()
-        
-        # Retornar con el serializer de lectura
+
         read_serializer = serializer.TrabajadorReadSerializer(trabajador)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
     
@@ -126,8 +162,7 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
         ser = self.get_serializer(instance, data=request.data, partial=partial)
         ser.is_valid(raise_exception=True)
         trabajador = ser.save()
-        
-        # Retornar con el serializer de lectura
+
         read_serializer = serializer.TrabajadorReadSerializer(trabajador)
         return Response(read_serializer.data)
     
@@ -135,13 +170,8 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
         """Eliminar trabajador"""
         instance = self.get_object()
         persona = instance.id_persona
-        
-        # Eliminar trabajador
+
         self.perform_destroy(instance)
-        
-        # Opcional: Eliminar también la persona si no tiene otros registros asociados
-        # if not models.Trabajador.objects.filter(id_persona=persona).exists():
-        #     persona.delete()
         
         return Response(status=status.HTTP_204_NO_CONTENT)
     
@@ -182,13 +212,11 @@ class DashboardViewSet(viewsets.ViewSet):
     def estadisticas_principales(self, request):
         hoy = timezone.now().date()
         ayer = hoy - timezone.timedelta(days=1)
-        
-        # 1. ENTREGAS HOY
+
         entregas_hoy = models.Salida.objects.filter(fecha=hoy).count()
         entregas_ayer = models.Salida.objects.filter(fecha=ayer).count()
         crecimiento_entregas = self._calcular_crecimiento(entregas_hoy, entregas_ayer)
-        
-        # 2. INGRESOS HOY
+
         ingresos_hoy = models.Venta.objects.filter(fecha=hoy).aggregate(
             total=Sum('total_cancelado')
         )['total'] or 0
@@ -197,8 +225,7 @@ class DashboardViewSet(viewsets.ViewSet):
             total=Sum('total_cancelado')
         )['total'] or 0
         crecimiento_ingresos = self._calcular_crecimiento(ingresos_hoy, ingresos_ayer)
-        
-        # 3. TRABAJADORES
+
         total_trabajadores = models.Trabajador.objects.count()
         trabajadores_activos = models.User.objects.filter(estado=True).count()
         estado_trabajadores = "Todos activos" if trabajadores_activos == total_trabajadores else f"{trabajadores_activos} activos"
@@ -212,8 +239,7 @@ class DashboardViewSet(viewsets.ViewSet):
             'trabajadores_activos': trabajadores_activos,
             'estado_trabajadores': estado_trabajadores
         }
-        
-        # ✅ CORREGIR: Usar serializer.DashboardSerializer (con import correcto)
+
         dashboard_serializer = serializer.DashboardSerializer(data)
         return Response(dashboard_serializer.data)
     
@@ -235,31 +261,26 @@ class DashboardViewSet(viewsets.ViewSet):
         datos_performance = []
         
         for fecha in ultimos_7_dias:
-            # ENTREGAS PROGRAMADAS (Total de salidas del día)
             entregas_programadas = models.Salida.objects.filter(fecha=fecha).count()
-            
-            # ENTREGAS COMPLETADAS (Salidas con estado = completado)
+
             entregas_completadas = models.Salida.objects.filter(
                 fecha=fecha,
-                id_estado_salida=2  # Asumiendo que 2 = Completado
+                id_estado_salida=2  
             ).count()
-            
-            # RETORNOS (Productos que volvieron)
+
             retornos = models.Retorno.objects.filter(
                 id_salida__fecha=fecha
             ).aggregate(
                 total_retornos=Sum('cantidad')
             )['total_retornos'] or 0
-            
-            # MONTO PENDIENTE DE COBRAR
+ 
             monto_pendiente = models.Salida.objects.filter(
                 fecha=fecha,
-                id_estado_pago__in=[2, 3]  # Pendiente o Parcial
+                id_estado_pago__in=[2, 3]
             ).aggregate(
                 total=Sum('total_cancelar')
             )['total'] or 0
-            
-            # CÁLCULO DE EFICIENCIA
+
             eficiencia = 0
             if entregas_programadas > 0:
                 eficiencia = (entregas_completadas / entregas_programadas) * 100
@@ -272,15 +293,10 @@ class DashboardViewSet(viewsets.ViewSet):
                 'eficiencia': round(eficiencia, 1),
                 'monto_pendiente': float(monto_pendiente)
             })
-        
-        # ✅ SOLO CAMBIA ESTAS 2 LÍNEAS:
+
         performance_serializer = serializer.PerformanceEntregasSerializer(datos_performance, many=True)
         return Response(performance_serializer.data)
 
-# views.py - Agrega esta clase
-
-
-# views.py - REEMPLAZA tu ReportesViewSet con esta versión corregida
 class ReportesViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['post'])
@@ -288,7 +304,6 @@ class ReportesViewSet(viewsets.ViewSet):
         try:
             print("🎯 INICIANDO GENERACIÓN DE REPORTE...")
             
-            # ✅ CORREGIDO: Cambiar nombre de variable
             from . import serializer as app_serializer
             reporte_serializer = app_serializer.ReporteFechasSerializer(data=request.data)
             
@@ -299,15 +314,13 @@ class ReportesViewSet(viewsets.ViewSet):
             data = reporte_serializer.validated_data
             tipo_reporte = data.get('tipo_reporte')
             print(f"📊 Tipo de reporte recibido: {tipo_reporte}")
-            
-            # Crear un Excel simple
+
             from openpyxl import Workbook
             
             wb = Workbook()
             ws = wb.active
             ws.title = "Reporte YacuSelva"
-            
-            # Datos básicos
+
             ws['A1'] = "REPORTE YACU SELVA"
             ws['A2'] = f"Tipo: {tipo_reporte.upper()}"
             ws['A3'] = f"Fecha: {timezone.now().date()}"
@@ -318,8 +331,7 @@ class ReportesViewSet(viewsets.ViewSet):
             ws['B7'] = models.Salida.objects.filter(fecha=timezone.now().date()).count()
             ws['A8'] = "Trabajadores Activos"
             ws['B8'] = models.User.objects.filter(estado=True).count()
-            
-            # Preparar respuesta
+
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
@@ -337,3 +349,133 @@ class ReportesViewSet(viewsets.ViewSet):
                 {"error": f"Error interno: {str(e)}"}, 
                 status=500
             )
+
+class MovimientoCajaViewSet(viewsets.ViewSet):
+    
+    @action(detail=False, methods=['post'])
+    def registrar_movimiento(self, request):
+        try:
+            from . import serializer as app_serializer
+            
+            movimiento_serializer = app_serializer.MovimientoCajaSerializer(data=request.data)
+            if not movimiento_serializer.is_valid():
+                return Response(movimiento_serializer.errors, status=400)
+            
+            data = movimiento_serializer.validated_data
+            
+            trabajador_default = models.Trabajador.objects.first()
+            if not trabajador_default:
+                return Response({"error": "No hay trabajadores registrados"}, status=400)
+            
+            movimiento = models.CajaIe.objects.create(
+                tipo=data['tipo'],
+                nonto=Decimal(str(data['monto'])),
+                descripcion=data['descripcion'],
+                id_trabajador=trabajador_default
+            )
+            
+            return Response({
+                "message": "Movimiento registrado exitosamente",
+                "id": movimiento.id_caja_ie,
+                "tipo": movimiento.tipo,
+                "monto": float(movimiento.nonto),
+                "descripcion": movimiento.descripcion
+            }, status=201)
+            
+        except Exception as e:
+            print(f"Error registrando movimiento: {str(e)}")
+            return Response({"error": str(e)}, status=500)
+    
+    @action(detail=False, methods=['get'])
+    def obtener_movimientos(self, request):
+        try:
+            movimientos = models.CajaIe.objects.all().select_related('id_trabajador').order_by('-id_caja_ie')[:50]
+            
+            datos = []
+            for mov in movimientos:
+                datos.append({
+                    'id': mov.id_caja_ie,
+                    'fecha': timezone.now().date(),
+                    'tipo': mov.tipo,
+                    'monto': float(mov.nonto),
+                    'descripcion': mov.descripcion,
+                    'metodo': 'efectivo',
+                    'responsable': mov.id_trabajador.id_persona.nombre_p if mov.id_trabajador else 'N/A'
+                })
+            
+            return Response(datos)
+            
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+    
+    @action(detail=False, methods=['get'])
+    def movimientos_caja_completos(self, request):
+        try:
+   
+            fecha_inicio = request.GET.get('fechaInicio')
+            fecha_fin = request.GET.get('fechaFin')
+            tipo = request.GET.get('tipo', 'todos')
+            metodo = request.GET.get('metodo', 'todos')
+            
+            movimientos = []
+
+            retornos = models.Retorno.objects.all()
+
+            if fecha_inicio:
+                retornos = retornos.filter(id_salida__fecha__gte=fecha_inicio)
+            if fecha_fin:
+                retornos = retornos.filter(id_salida__fecha__lte=fecha_fin)
+                
+            for retorno in retornos:
+                movimientos.append({
+                    'id': f"R_{retorno.id_retorno}",
+                    'fecha': retorno.id_salida.fecha,
+                    'hora': retorno.id_salida.hora,
+                    'monto': float(retorno.total_cancelado),
+                    'tipo': 'ingreso',
+                    'metodo': self._determinar_metodo_pago(retorno.id_pago),
+                    'descripcion': f"Venta - {retorno.id_salida.id_producto.nom_producto}",
+                    'responsable': retorno.id_salida.id_trabajador.id_persona.nombre_p,
+                    'origen': 'venta'
+                })
+
+            egresos = models.CajaIe.objects.all()
+
+            if tipo == 'ingreso':
+                egresos = egresos.none() 
+            
+            for egreso in egresos:
+                movimientos.append({
+                    'id': f"E_{egreso.id_caja_ie}",
+                    'fecha': timezone.now().date(),
+                    'hora': timezone.now().time(),
+                    'monto': float(egreso.nonto),
+                    'tipo': egreso.tipo, 
+                    'metodo': 'efectivo',
+                    'descripcion': egreso.descripcion or "Movimiento de caja",
+                    'responsable': egreso.id_trabajador.id_persona.nombre_p if egreso.id_trabajador else 'Sistema',
+                    'origen': 'caja_manual'
+                })
+            
+            movimientos.sort(key=lambda x: (x['fecha'], x['hora']), reverse=True)
+
+            if tipo in ['ingreso', 'egreso']:
+                movimientos = [m for m in movimientos if m['tipo'] == tipo]
+
+            if metodo != 'todos':
+                movimientos = [m for m in movimientos if m['metodo'] == metodo]
+            
+            return Response(movimientos[:100])
+            
+        except Exception as e:
+            print(f"Error obteniendo movimientos: {str(e)}")
+            return Response({"error": str(e)}, status=500)
+
+    def _determinar_metodo_pago(self, pago):
+        """Determina el método de pago basado en los montos"""
+        if pago.yape > 0 and pago.efectivo > 0:
+            return 'mixto'
+        elif pago.yape > 0:
+            return 'yape'
+        else:
+            return 'efectivo'
