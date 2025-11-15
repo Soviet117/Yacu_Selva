@@ -1,4 +1,4 @@
-function TargetCaja({ title, monto, subTitle, color, icon, trend }) {
+function TargetCaja({ title, monto, subTitle, color, icon }) {
   const colorConfig = {
     green: {
       text: "text-green-600",
@@ -45,11 +45,6 @@ function TargetCaja({ title, monto, subTitle, color, icon, trend }) {
       </div>
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">{subTitle}</p>
-        {trend && (
-          <span className={`text-sm font-medium ${config.trend}`}>
-            {trend === "up" ? "+12%" : "-5%"}
-          </span>
-        )}
       </div>
     </div>
   );

@@ -1,24 +1,62 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Minus, Save, X } from "lucide-react";
-import { registrarMovimientoCaja } from "../../api/api.caja";
+import {
+  registrarMovimientoCaja,
+  obtenerTrabajadores,
+} from "../../api/api.caja";
 
 function RegistroRapidoCaja({ onRegistroSuccess }) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [cargandoTrabajadores, setCargandoTrabajadores] = useState(false);
+
   const [formData, setFormData] = useState({
     tipo: "ingreso",
     monto: "",
     descripcion: "",
     metodo: "efectivo",
+    id_trabajador: "",
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      cargarTrabajadores();
+    }
+  }, [isOpen]);
+
+  const cargarTrabajadores = async () => {
+    setCargandoTrabajadores(true);
+    try {
+      const response = await obtenerTrabajadores();
+      setTrabajadores(response.data);
+
+      if (response.data.length > 0 && !formData.id_trabajador) {
+        setFormData((prev) => ({
+          ...prev,
+          id_trabajador: response.data[0].id_trabajador,
+        }));
+      }
+    } catch (error) {
+      console.error("Error cargando trabajadores:", error);
+      alert("Error al cargar la lista de trabajadores");
+    } finally {
+      setCargandoTrabajadores(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.id_trabajador) {
+      alert("Por favor selecciona un trabajador responsable");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await registrarMovimientoCaja(formData);
-
       console.log("Movimiento registrado:", response.data);
 
       onRegistroSuccess?.();
@@ -28,6 +66,8 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
         monto: "",
         descripcion: "",
         metodo: "efectivo",
+        id_trabajador:
+          trabajadores.length > 0 ? trabajadores[0].id_trabajador : "",
       });
 
       alert("Movimiento registrado exitosamente!");
@@ -52,60 +92,103 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-800">
-                Nuevo Movimiento de Caja
+        <div className="fixed inset-0 bg-gray-400 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          {/* Cambios principales aquí - modal más compacto y responsive */}
+          <div className="bg-white rounded-2xl w-full max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
+            {/* Header más compacto */}
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-lg font-bold text-gray-800">
+                Nuevo Movimiento
               </h2>
               <button
                 onClick={() => !loading && setIsOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
                 disabled={loading}
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 space-y-3">
+              {/* Trabajador Responsable */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Trabajador Responsable *
+                </label>
+                {cargandoTrabajadores ? (
+                  <div className="p-2 text-xs border border-gray-300 rounded-lg text-gray-500">
+                    Cargando trabajadores...
+                  </div>
+                ) : trabajadores.length === 0 ? (
+                  <div className="p-2 text-xs border border-red-300 rounded-lg text-red-500 bg-red-50">
+                    No hay trabajadores registrados
+                  </div>
+                ) : (
+                  <select
+                    value={formData.id_trabajador}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        id_trabajador: e.target.value,
+                      })
+                    }
+                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                    disabled={loading}
+                  >
+                    <option value="">Selecciona un trabajador</option>
+                    {trabajadores.map((trab) => (
+                      <option
+                        key={trab.id_trabajador}
+                        value={trab.id_trabajador}
+                      >
+                        {trab.nombre_completo} - {trab.dni}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Tipo de Movimiento */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Tipo de Movimiento
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1">
                   <button
                     type="button"
                     onClick={() =>
                       setFormData({ ...formData, tipo: "ingreso" })
                     }
                     disabled={loading}
-                    className={`p-3 rounded-lg border-2 transition-all ${
+                    className={`p-2 text-xs rounded-lg border transition-all ${
                       formData.tipo === "ingreso"
                         ? "border-green-500 bg-green-50 text-green-700"
                         : "border-gray-200 text-gray-600 hover:border-gray-300"
                     } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    <Plus className="h-4 w-4 inline mr-2" />
+                    <Plus className="h-3 w-3 inline mr-1" />
                     Ingreso
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, tipo: "egreso" })}
                     disabled={loading}
-                    className={`p-3 rounded-lg border-2 transition-all ${
+                    className={`p-2 text-xs rounded-lg border transition-all ${
                       formData.tipo === "egreso"
                         ? "border-red-500 bg-red-50 text-red-700"
                         : "border-gray-200 text-gray-600 hover:border-gray-300"
                     } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    <Minus className="h-4 w-4 inline mr-2" />
+                    <Minus className="h-3 w-3 inline mr-1" />
                     Egreso
                   </button>
                 </div>
               </div>
 
+              {/* Monto */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Monto (S/.)
                 </label>
                 <input
@@ -116,15 +199,16 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                   onChange={(e) =>
                     setFormData({ ...formData, monto: e.target.value })
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="0.00"
                   required
                   disabled={loading}
                 />
               </div>
 
+              {/* Método */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Método
                 </label>
                 <select
@@ -132,7 +216,7 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                   onChange={(e) =>
                     setFormData({ ...formData, metodo: e.target.value })
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   disabled={loading}
                 >
                   <option value="efectivo">Efectivo</option>
@@ -141,8 +225,9 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                 </select>
               </div>
 
+              {/* Descripción */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Descripción
                 </label>
                 <textarea
@@ -150,36 +235,39 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                   onChange={(e) =>
                     setFormData({ ...formData, descripcion: e.target.value })
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="3"
-                  placeholder="Ej: Venta de bidones, Pago de servicios, Compra de insumos..."
+                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  rows="2"
+                  placeholder="Ej: Venta de bidones, Pago de servicios..."
                   required
                   disabled={loading}
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
+              {/* Botones */}
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
                   disabled={loading}
-                  className="flex-1 p-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 p-2 text-xs border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={
+                    loading || !formData.id_trabajador || cargandoTrabajadores
+                  }
+                  className="flex-1 p-2 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                 >
                   {loading ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                       Guardando...
                     </>
                   ) : (
                     <>
-                      <Save className="h-4 w-4" />
+                      <Save className="h-3 w-3" />
                       Registrar
                     </>
                   )}

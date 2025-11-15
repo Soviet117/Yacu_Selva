@@ -7,6 +7,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from . import models,serializer
 from django.http import HttpResponse
 from decimal import Decimal    
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from datetime import datetime
 
 class personaView(viewsets.ModelViewSet):
     queryset = models.Persona.objects.all()
@@ -57,75 +62,54 @@ class RetornoViewRes(viewsets.ModelViewSet):
     serializer_class = serializer.RetornoReadSerializer
 
     @action(detail=False, methods=['get'])
-    def resumen_retornos(self, request):
-        hoy = timezone.now().date()
-        print("Fecha de hoy:", hoy)
-        
-        retornos_hoy = models.Retorno.objects.filter(id_salida__fecha=hoy)
-
-        total_hoy = retornos_hoy.aggregate(
-            total=Sum('total_cancelado')  
-        )['total'] or 0
-        
-        total_repartidores = retornos_hoy.filter(
-            id_salida__id_trabajador__id_tipo_trabajador=3
-        ).aggregate(
-            total=Sum('total_cancelado')  
-        )['total'] or 0
-        
-        total_no_repartidores = retornos_hoy.exclude(
-            id_salida__id_trabajador__id_tipo_trabajador=3
-        ).aggregate(
-            total=Sum('total_cancelado') 
-        )['total'] or 0
-
-        data = {
-            'total_hoy': total_hoy,
-            'total_repartidores': total_repartidores,
-            'total_no_repartidores': total_no_repartidores
-        }
-        
-        Nserializer = serializer.DataCaja(data)
-        return Response(Nserializer.data)
-    
-    @action(detail=False, methods=['get'])
     def resumen_caja_completo(self, request):
         hoy = timezone.now().date()
+        print(f"Calculando resumen para: {hoy}")
         
+        # 1. INGRESOS POR RETORNOS (Dinero que YA pagaron)
         retornos_hoy = models.Retorno.objects.filter(id_salida__fecha=hoy)
         
-        total_hoy = retornos_hoy.aggregate(
+        total_ingresos_reales = retornos_hoy.aggregate(
             total=Sum('total_cancelado')
         )['total'] or 0
         
-        total_repartidores = retornos_hoy.filter(
-            id_salida__id_trabajador__id_tipo_trabajador=3
-        ).aggregate(
-            total=Sum('total_cancelado')
+        # 2. SALIDAS POR TIPO DE TRABAJADOR (Lo que se llevaron para vender)
+        salidas_hoy = models.Salida.objects.filter(fecha=hoy)
+        
+        # Delivery - Solo repartidores (ID 3)
+        salidas_delivery = salidas_hoy.filter(id_trabajador__id_tipo_trabajador=3)
+        total_delivery = salidas_delivery.aggregate(
+            total=Sum('total_cancelar')
         )['total'] or 0
         
-        total_no_repartidores = retornos_hoy.exclude(
-            id_salida__id_trabajador__id_tipo_trabajador=3
-        ).aggregate(
-            total=Sum('total_cancelado')
+        # Venta local - Jefe de planta (1) y Asistente (2)
+        salidas_local = salidas_hoy.filter(id_trabajador__id_tipo_trabajador__in=[1, 2])
+        total_local = salidas_local.aggregate(
+            total=Sum('total_cancelar')
         )['total'] or 0
-
+        
         total_egresos = models.CajaIe.objects.filter(
-            tipo="egreso",  
+            tipo="egreso",
+            fecha__date=hoy  # ← CAMBIO AQUÍ: usa __date para extraer solo la fecha
         ).aggregate(
             total=Sum('nonto')
         )['total'] or 0
 
+        # Debug info
+        print(f"Salidas delivery hoy: {salidas_delivery.count()}")
+        print(f"Salidas local hoy: {salidas_local.count()}")
+        print(f"Retornos hoy: {retornos_hoy.count()}")
+        print(f"Egresos hoy: {total_egresos}")
+
         data = {
-            'total_hoy': float(total_hoy),
-            'total_repartidores': float(total_repartidores),
-            'total_no_repartidores': float(total_no_repartidores),
+            'total_hoy': float(total_ingresos_reales),
+            'total_repartidores': float(total_delivery),
+            'total_no_repartidores': float(total_local),
             'total_egresos': float(total_egresos),
-            'balance_neto': float(total_hoy - total_egresos)
+            'balance_neto': float(total_ingresos_reales - total_egresos)
         }
         
         return Response(data)
-    
 
 class TrabajadorViewSet(viewsets.ModelViewSet):
     queryset = models.Trabajador.objects.select_related(
@@ -363,15 +347,17 @@ class MovimientoCajaViewSet(viewsets.ViewSet):
             
             data = movimiento_serializer.validated_data
             
-            trabajador_default = models.Trabajador.objects.first()
-            if not trabajador_default:
-                return Response({"error": "No hay trabajadores registrados"}, status=400)
+            # Obtener el trabajador seleccionado (NO más el default)
+            try:
+                trabajador = models.Trabajador.objects.get(id_trabajador=data['id_trabajador'])
+            except models.Trabajador.DoesNotExist:
+                return Response({"error": "Trabajador no encontrado"}, status=400)
             
             movimiento = models.CajaIe.objects.create(
                 tipo=data['tipo'],
                 nonto=Decimal(str(data['monto'])),
                 descripcion=data['descripcion'],
-                id_trabajador=trabajador_default
+                id_trabajador=trabajador  # ← Usar el trabajador seleccionado
             )
             
             return Response({
@@ -384,6 +370,25 @@ class MovimientoCajaViewSet(viewsets.ViewSet):
             
         except Exception as e:
             print(f"Error registrando movimiento: {str(e)}")
+            return Response({"error": str(e)}, status=500)
+
+    # AÑADIR ESTE NUEVO ENDPOINT para obtener trabajadores
+    @action(detail=False, methods=['get'])
+    def obtener_trabajadores(self, request):
+        try:
+            trabajadores = models.Trabajador.objects.all().select_related('id_persona')
+            
+            datos = []
+            for trab in trabajadores:
+                datos.append({
+                    'id_trabajador': trab.id_trabajador,
+                    'nombre_completo': f"{trab.id_persona.nombre_p} {trab.id_persona.apellido_p}",
+                    'dni': trab.id_persona.dni_p
+                })
+            
+            return Response(datos)
+            
+        except Exception as e:
             return Response({"error": str(e)}, status=500)
     
     @action(detail=False, methods=['get'])
@@ -470,6 +475,236 @@ class MovimientoCajaViewSet(viewsets.ViewSet):
         except Exception as e:
             print(f"Error obteniendo movimientos: {str(e)}")
             return Response({"error": str(e)}, status=500)
+
+    def _determinar_metodo_pago(self, pago):
+        """Determina el método de pago basado en los montos"""
+        if pago.yape > 0 and pago.efectivo > 0:
+            return 'mixto'
+        elif pago.yape > 0:
+            return 'yape'
+        else:
+            return 'efectivo'
+        
+    @action(detail=False, methods=['get'])
+    def generar_reporte_excel(self, request):
+        try:
+            # Obtener parámetros de filtro
+            fecha_inicio = request.GET.get('fechaInicio')
+            fecha_fin = request.GET.get('fechaFin')
+            tipo = request.GET.get('tipo', 'todos')
+            metodo = request.GET.get('metodo', 'todos')
+            
+            # Aplicar los mismos filtros que en movimientos_caja_completos
+            movimientos = []
+            
+            # Obtener retornos (ingresos) con filtros
+            retornos = models.Retorno.objects.all()
+            if fecha_inicio:
+                retornos = retornos.filter(id_salida__fecha__gte=fecha_inicio)
+            if fecha_fin:
+                retornos = retornos.filter(id_salida__fecha__lte=fecha_fin)
+                
+            for retorno in retornos:
+                movimientos.append({
+                    'id': f"R_{retorno.id_retorno}",
+                    'fecha': retorno.id_salida.fecha,
+                    'hora': retorno.id_salida.hora,
+                    'monto': float(retorno.total_cancelado),
+                    'tipo': 'ingreso',
+                    'metodo': self._determinar_metodo_pago(retorno.id_pago),
+                    'descripcion': f"Venta - {retorno.id_salida.id_producto.nom_producto}",
+                    'responsable': f"{retorno.id_salida.id_trabajador.id_persona.nombre_p} {retorno.id_salida.id_trabajador.id_persona.apellido_p}",
+                    'origen': 'venta'
+                })
+
+            # Obtener movimientos manuales de caja con filtros
+            egresos = models.CajaIe.objects.all()
+            if fecha_inicio:
+                egresos = egresos.filter(fecha__date__gte=fecha_inicio)
+            if fecha_fin:
+                egresos = egresos.filter(fecha__date__lte=fecha_fin)
+            
+            if tipo == 'ingreso':
+                egresos = egresos.none()
+            elif tipo == 'egreso':
+                egresos = egresos.filter(tipo='egreso')
+            
+            for movimiento in egresos:
+                movimientos.append({
+                    'id': f"E_{movimiento.id_caja_ie}",
+                    'fecha': movimiento.fecha.date() if hasattr(movimiento.fecha, 'date') else movimiento.fecha,
+                    'hora': movimiento.fecha.time() if hasattr(movimiento.fecha, 'time') else movimiento.fecha,
+                    'monto': float(movimiento.nonto),
+                    'tipo': movimiento.tipo,
+                    'metodo': 'efectivo',  # O puedes agregar campo método en CajaIe
+                    'descripcion': movimiento.descripcion or "Movimiento de caja",
+                    'responsable': f"{movimiento.id_trabajador.id_persona.nombre_p} {movimiento.id_trabajador.id_persona.apellido_p}" if movimiento.id_trabajador else 'Sistema',
+                    'origen': 'caja_manual'
+                })
+
+            # Aplicar filtros adicionales
+            if tipo in ['ingreso', 'egreso']:
+                movimientos = [m for m in movimientos if m['tipo'] == tipo]
+            
+            if metodo != 'todos':
+                movimientos = [m for m in movimientos if m['metodo'] == metodo]
+            
+            # Ordenar por fecha y hora
+            movimientos.sort(key=lambda x: (x['fecha'], x['hora']), reverse=True)
+            
+            # Crear el archivo Excel profesional
+            return self._crear_excel_profesional(movimientos, fecha_inicio, fecha_fin, tipo, metodo)
+            
+        except Exception as e:
+            print(f"Error generando reporte: {str(e)}")
+            return Response({"error": str(e)}, status=500)
+
+    def _crear_excel_profesional(self, movimientos, fecha_inicio, fecha_fin, tipo, metodo):
+        # Crear workbook y worksheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reporte de Caja"
+        
+        # Estilos
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="2C5F2D", end_color="2C5F2D", fill_type="solid")
+        title_font = Font(bold=True, size=16, color="2C5F2D")
+        subheader_font = Font(bold=True, size=12)
+        border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                       top=Side(style='thin'), bottom=Side(style='thin'))
+        center_align = Alignment(horizontal='center', vertical='center')
+        
+        # Título principal
+        ws.merge_cells('A1:H1')
+        ws['A1'] = "REPORTE DE CAJA - YACU SELVA"
+        ws['A1'].font = title_font
+        ws['A1'].alignment = center_align
+        
+        # Información del reporte
+        ws.merge_cells('A2:H2')
+        periodo = "PERIODO: "
+        if fecha_inicio and fecha_fin:
+            periodo += f"{fecha_inicio} al {fecha_fin}"
+        elif fecha_inicio:
+            periodo += f"Desde {fecha_inicio}"
+        elif fecha_fin:
+            periodo += f"Hasta {fecha_fin}"
+        else:
+            periodo += "Todos los registros"
+            
+        if tipo != 'todos':
+            periodo += f" | TIPO: {tipo.upper()}"
+        if metodo != 'todos':
+            periodo += f" | MÉTODO: {metodo.upper()}"
+            
+        ws['A2'] = periodo
+        ws['A2'].font = subheader_font
+        ws['A2'].alignment = center_align
+        
+        # Fecha de generación
+        ws.merge_cells('A3:H3')
+        ws['A3'] = f"Generado el: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        ws['A3'].alignment = center_align
+        
+        # Espacio
+        ws.row_dimensions[4].height = 5
+        
+        # Encabezados de columnas
+        headers = ['FECHA', 'HORA', 'TIPO', 'DESCRIPCIÓN', 'RESPONSABLE', 'MÉTODO', 'MONTO (S/.)', 'ORIGEN']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+        
+        # Datos
+        row_num = 6
+        total_ingresos = 0
+        total_egresos = 0
+        
+        for mov in movimientos:
+            # Formatear fecha y hora
+            fecha_str = mov['fecha'].strftime('%Y-%m-%d') if hasattr(mov['fecha'], 'strftime') else str(mov['fecha'])
+            hora_str = mov['hora'].strftime('%H:%M:%S') if hasattr(mov['hora'], 'strftime') else str(mov['hora'])
+            
+            # Determinar color por tipo
+            tipo_color = "00B050" if mov['tipo'] == 'ingreso' else "FF0000"
+            tipo_texto = "INGRESO" if mov['tipo'] == 'ingreso' else "EGRESO"
+            
+            # Escribir datos
+            ws.cell(row=row_num, column=1, value=fecha_str).border = border
+            ws.cell(row=row_num, column=2, value=hora_str).border = border
+            ws.cell(row=row_num, column=3, value=tipo_texto).border = border
+            ws.cell(row=row_num, column=4, value=mov['descripcion']).border = border
+            ws.cell(row=row_num, column=5, value=mov['responsable']).border = border
+            ws.cell(row=row_num, column=6, value=mov['metodo'].upper()).border = border
+            ws.cell(row=row_num, column=7, value=mov['monto']).border = border
+            ws.cell(row=row_num, column=8, value=mov['origen']).border = border
+            
+            # Aplicar color al tipo
+            tipo_cell = ws.cell(row=row_num, column=3)
+            tipo_cell.font = Font(bold=True, color=tipo_color)
+            
+            # Aplicar color al monto
+            monto_cell = ws.cell(row=row_num, column=7)
+            monto_cell.font = Font(bold=True, color=tipo_color)
+            monto_cell.number_format = '#,##0.00'
+            
+            # Sumar totales
+            if mov['tipo'] == 'ingreso':
+                total_ingresos += mov['monto']
+            else:
+                total_egresos += mov['monto']
+            
+            row_num += 1
+        
+        # Totales
+        ws.merge_cells(f'A{row_num+1}:F{row_num+1}')
+        total_cell = ws.cell(row=row_num+1, column=1, value="TOTAL INGRESOS:")
+        total_cell.font = Font(bold=True, color="00B050")
+        total_cell.alignment = Alignment(horizontal='right')
+        total_cell.border = border
+        
+        ws.cell(row=row_num+1, column=7, value=total_ingresos).border = border
+        ws.cell(row=row_num+1, column=7).font = Font(bold=True, color="00B050")
+        ws.cell(row=row_num+1, column=7).number_format = '#,##0.00'
+        
+        ws.merge_cells(f'A{row_num+2}:F{row_num+2}')
+        total_cell = ws.cell(row=row_num+2, column=1, value="TOTAL EGRESOS:")
+        total_cell.font = Font(bold=True, color="FF0000")
+        total_cell.alignment = Alignment(horizontal='right')
+        total_cell.border = border
+        
+        ws.cell(row=row_num+2, column=7, value=total_egresos).border = border
+        ws.cell(row=row_num+2, column=7).font = Font(bold=True, color="FF0000")
+        ws.cell(row=row_num+2, column=7).number_format = '#,##0.00'
+        
+        ws.merge_cells(f'A{row_num+3}:F{row_num+3}')
+        balance = total_ingresos - total_egresos
+        balance_color = "00B050" if balance >= 0 else "FF0000"
+        total_cell = ws.cell(row=row_num+3, column=1, value="BALANCE FINAL:")
+        total_cell.font = Font(bold=True, color=balance_color)
+        total_cell.alignment = Alignment(horizontal='right')
+        total_cell.border = border
+        
+        ws.cell(row=row_num+3, column=7, value=balance).border = border
+        ws.cell(row=row_num+3, column=7).font = Font(bold=True, color=balance_color, size=14)
+        ws.cell(row=row_num+3, column=7).number_format = '#,##0.00'
+        
+        # Ajustar anchos de columnas
+        column_widths = [12, 10, 12, 35, 20, 12, 15, 15]
+        for i, width in enumerate(column_widths, 1):
+            ws.column_dimensions[get_column_letter(i)].width = width
+        
+        # Preparar respuesta
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="reporte_caja.xlsx"'
+        
+        wb.save(response)
+        return response
 
     def _determinar_metodo_pago(self, pago):
         """Determina el método de pago basado en los montos"""

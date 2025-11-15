@@ -32,3 +32,8 @@ export function registrarMovimientoCaja(datos) {
     }
   );
 }
+
+// AÑADE ESTA NUEVA FUNCIÓN para obtener trabajadores
+export function obtenerTrabajadores() {
+  return axios.get(`${BASE_URL}/movimientos-caja/obtener_trabajadores/`);
+}

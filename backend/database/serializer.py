@@ -319,3 +319,4 @@ class MovimientoCajaSerializer(serializers.Serializer):
     monto = serializers.DecimalField(max_digits=10, decimal_places=2)
     descripcion = serializers.CharField()
     metodo = serializers.ChoiceField(choices=['efectivo', 'yape', 'transferencia'])
+    id_trabajador = serializers.IntegerField()  # ← AÑADIR ESTE CAMPO

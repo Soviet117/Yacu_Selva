@@ -1,7 +1,14 @@
 import TargetCaja from "../ui/TargetCaja";
 import { useState, useEffect } from "react";
-import { loadCajaR } from "../../api/api.cajad";
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { loadCajaR } from "../../api/api.cajad"; // Verifica que esta función apunte al endpoint correcto
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Package,
+  Store,
+  CreditCard,
+} from "lucide-react";
 
 function StartCaja() {
   const [data, setData] = useState({});
@@ -10,10 +17,19 @@ function StartCaja() {
   useEffect(() => {
     async function loadData() {
       try {
-        const datax = await loadCajaR();
-        setData(datax.data || {});
+        const response = await loadCajaR();
+        console.log("Datos recibidos:", response.data); // Para debug
+        setData(response.data || {});
       } catch (error) {
         console.error("Error loading caja data:", error);
+        // Set datos por defecto en caso de error
+        setData({
+          total_hoy: 0,
+          total_repartidores: 0,
+          total_no_repartidores: 0,
+          total_egresos: 0,
+          balance_neto: 0,
+        });
       } finally {
         setLoading(false);
       }
@@ -23,8 +39,8 @@ function StartCaja() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {[...Array(3)].map((_, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {[...Array(4)].map((_, i) => (
           <div
             key={i}
             className="bg-white rounded-2xl p-6 shadow-lg animate-pulse"
@@ -43,34 +59,30 @@ function StartCaja() {
       <TargetCaja
         title={"Total del Día"}
         monto={data.total_hoy || 0}
-        subTitle={"Ingresos registrados"}
+        subTitle={"Ingresos totales"}
         color={"green"}
         icon={<DollarSign className="h-6 w-6" />}
-        trend="up"
       />
       <TargetCaja
         title={"Por Delivery"}
         monto={data.total_repartidores || 0}
-        subTitle={"Canal delivery"}
+        subTitle={"Ventas por repartidores"}
         color={"blue"}
-        icon={<TrendingUp className="h-6 w-6" />}
-        trend="up"
+        icon={<Package className="h-6 w-6" />}
       />
       <TargetCaja
         title={"Venta Local"}
         monto={data.total_no_repartidores || 0}
-        subTitle={"Punto de venta"}
+        subTitle={"Ventas en punto físico"}
         color={"purple"}
-        icon={<TrendingUp className="h-6 w-6" />}
-        trend="up"
+        icon={<Store className="h-6 w-6" />}
       />
       <TargetCaja
         title={"Egresos del Día"}
         monto={data.total_egresos || 0}
         subTitle={"Gastos operativos"}
         color={"red"}
-        icon={<TrendingDown className="h-6 w-6" />}
-        trend="down"
+        icon={<CreditCard className="h-6 w-6" />}
       />
     </div>
   );

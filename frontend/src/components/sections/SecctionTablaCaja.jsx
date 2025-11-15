@@ -16,24 +16,32 @@ function SecctionTablaCaja() {
 
   const handleExportar = async () => {
     try {
-      const response = await axios.post(
-        "http://127.0.0.1:8000/database/api/v1/reportes/generar_reporte/",
-        { tipo_reporte: "diario" },
+      // Pasar los filtros actuales al backend
+      const params = new URLSearchParams();
+
+      if (filtros.fechaInicio)
+        params.append("fechaInicio", filtros.fechaInicio);
+      if (filtros.fechaFin) params.append("fechaFin", filtros.fechaFin);
+      if (filtros.tipo && filtros.tipo !== "todos")
+        params.append("tipo", filtros.tipo);
+      if (filtros.metodo && filtros.metodo !== "todos")
+        params.append("metodo", filtros.metodo);
+
+      const response = await axios.get(
+        `http://127.0.0.1:8000/database/api/v1/movimientos-caja/generar_reporte_excel/?${params}`,
         {
           responseType: "blob",
-          headers: {
-            "Content-Type": "application/json",
-          },
         }
       );
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute(
-        "download",
-        `reporte_caja_${new Date().toISOString().split("T")[0]}.xlsx`
-      );
+
+      // Nombre del archivo con filtros aplicados
+      const nombreArchivo = generarNombreArchivo();
+      link.setAttribute("download", nombreArchivo);
+
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -44,6 +52,26 @@ function SecctionTablaCaja() {
     }
   };
 
+  const generarNombreArchivo = () => {
+    const fecha = new Date().toISOString().split("T")[0];
+    let nombre = `reporte_caja_${fecha}`;
+
+    if (filtros.fechaInicio && filtros.fechaFin) {
+      nombre += `_${filtros.fechaInicio}_a_${filtros.fechaFin}`;
+    }
+
+    if (filtros.tipo !== "todos") {
+      nombre += `_${filtros.tipo}s`;
+    }
+
+    if (filtros.metodo !== "todos") {
+      nombre += `_${filtros.metodo}`;
+    }
+
+    return `${nombre}.xlsx`;
+  };
+
+  // ... el resto de tu código permanece igual
   const handleAplicarFiltros = () => {
     console.log("Aplicando filtros:", filtros);
     setFiltrosOpen(false);
@@ -59,6 +87,8 @@ function SecctionTablaCaja() {
     });
     setRefreshKey((prev) => prev + 1);
   };
+
+  // ... resto del código del componente (ModalFiltros, etc.)
 
   const ModalFiltros = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
