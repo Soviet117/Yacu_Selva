@@ -17,9 +17,10 @@ class CajaIe(models.Model):
     url_boelta = models.CharField(blank=True, null=True)
     id_trabajador = models.ForeignKey(
         'Trabajador', models.DO_NOTHING, db_column='id_trabajador')
+    fecha = models.DateTimeField(blank=True, null=True)
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'caja_ie'
 
 

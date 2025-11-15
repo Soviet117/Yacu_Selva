@@ -14,7 +14,7 @@ router.register(r'dashboard', views.DashboardViewSet, 'dashboard')
 router.register(r'tipos-trabajador', views.TipoTrabajadorViewSet, 'tipo-trabajador')
 router.register(r'horarios', views.HorarioViewSet, 'horario')
 router.register(r'reportes', views.ReportesViewSet, 'reportes')
-
+router.register(r'movimientos-caja', views.MovimientoCajaViewSet, 'movimientos-caja')
 
 urlpatterns = [
     path('api/v1/', include(router.urls)),

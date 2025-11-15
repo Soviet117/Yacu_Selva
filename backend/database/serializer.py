@@ -160,18 +160,13 @@ class DataCaja(serializers.Serializer):
 
 
 class TrabajadorReadSerializer(serializers.ModelSerializer):
-    # Datos de la persona
     nombre_completo = serializers.SerializerMethodField()
     nombre_p = serializers.CharField(source='id_persona.nombre_p', read_only=True)
     apellido_p = serializers.CharField(source='id_persona.apellido_p', read_only=True)
     dni_p = serializers.CharField(source='id_persona.dni_p', read_only=True)
     direccion = serializers.CharField(source='id_persona.direccion', read_only=True)
     url_dni = serializers.CharField(source='id_persona.url_dni', read_only=True)
-    
-    # Datos del tipo de trabajador
     tipo_trabajador = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
-    
-    # Datos del horario
     entrada = serializers.TimeField(source='id_horario.entrada', read_only=True)
     salida = serializers.TimeField(source='id_horario.salida', read_only=True)
     inicio_break = serializers.TimeField(source='id_horario.inicio_break', read_only=True)
@@ -189,9 +184,7 @@ class TrabajadorReadSerializer(serializers.ModelSerializer):
         return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"
 
 
-# Serializer para crear Trabajador (POST)
 class TrabajadorCreateSerializer(serializers.ModelSerializer):
-    # Campos de persona (anidados)
     nombre_p = serializers.CharField(write_only=True)
     apellido_p = serializers.CharField(write_only=True)
     dni_p = serializers.CharField(write_only=True)
@@ -206,7 +199,6 @@ class TrabajadorCreateSerializer(serializers.ModelSerializer):
         ]
     
     def create(self, validated_data):
-        # Extraer datos de persona
         persona_data = {
             'nombre_p': validated_data.pop('nombre_p'),
             'apellido_p': validated_data.pop('apellido_p'),
@@ -215,10 +207,8 @@ class TrabajadorCreateSerializer(serializers.ModelSerializer):
             'url_dni': validated_data.pop('url_dni', ''),
         }
         
-        # Crear la persona primero
         persona = models.Persona.objects.create(**persona_data)
         
-        # Crear el trabajador con la persona creada
         trabajador = models.Trabajador.objects.create(
             id_persona=persona,
             **validated_data
@@ -232,10 +222,7 @@ class TrabajadorCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Ya existe una persona con este DNI.")
         return value
 
-
-# Serializer para actualizar Trabajador (PUT/PATCH)
 class TrabajadorUpdateSerializer(serializers.ModelSerializer):
-    # Campos de persona (anidados)
     nombre_p = serializers.CharField(required=False)
     apellido_p = serializers.CharField(required=False)
     dni_p = serializers.CharField(required=False)
@@ -250,7 +237,6 @@ class TrabajadorUpdateSerializer(serializers.ModelSerializer):
         ]
     
     def update(self, instance, validated_data):
-        # Extraer datos de persona si existen
         persona_data = {}
         persona_fields = ['nombre_p', 'apellido_p', 'dni_p', 'direccion', 'url_dni']
         
@@ -258,14 +244,12 @@ class TrabajadorUpdateSerializer(serializers.ModelSerializer):
             if field in validated_data:
                 persona_data[field] = validated_data.pop(field)
         
-        # Actualizar datos de persona si hay cambios
         if persona_data:
             persona = instance.id_persona
             for attr, value in persona_data.items():
                 setattr(persona, attr, value)
             persona.save()
         
-        # Actualizar datos del trabajador
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -279,8 +263,6 @@ class TrabajadorUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Ya existe una persona con este DNI.")
         return value
 
-
-# Serializer simple para listados (opcional)
 class TrabajadorListSerializer(serializers.ModelSerializer):
     nombre_completo = serializers.SerializerMethodField()
     tipo_trabajador = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
@@ -331,3 +313,10 @@ class ReporteFechasSerializer(serializers.Serializer):
         choices=['diario', 'semanal', 'mensual'],
         required=True
     )
+
+class MovimientoCajaSerializer(serializers.Serializer):
+    tipo = serializers.ChoiceField(choices=['ingreso', 'egreso'])
+    monto = serializers.DecimalField(max_digits=10, decimal_places=2)
+    descripcion = serializers.CharField()
+    metodo = serializers.ChoiceField(choices=['efectivo', 'yape', 'transferencia'])
+    id_trabajador = serializers.IntegerField()  # ← AÑADIR ESTE CAMPO
