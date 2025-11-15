@@ -320,3 +320,11 @@ class MovimientoCajaSerializer(serializers.Serializer):
     descripcion = serializers.CharField()
     metodo = serializers.ChoiceField(choices=['efectivo', 'yape', 'transferencia'])
     id_trabajador = serializers.IntegerField()  # ← AÑADIR ESTE CAMPO
+
+# In your serializers.py
+class POSSalidaSerializer(serializers.Serializer):
+    id_trabajador = serializers.IntegerField()
+    id_producto = serializers.IntegerField()
+    cantidad = serializers.IntegerField(min_value=1)
+    id_cliente = serializers.IntegerField(required=False, allow_null=True)  # Optional for POS
+    metodo_pago = serializers.ChoiceField(choices=['efectivo', 'yape', 'transferencia', 'mixto'])
