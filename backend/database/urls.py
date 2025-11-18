@@ -17,6 +17,7 @@ router.register(r'reportes', views.ReportesViewSet, 'reportes')
 router.register(r'movimientos-caja', views.MovimientoCajaViewSet, 'movimientos-caja')
 router.register(r'clientes', views.ClienteViewSet, basename='clientes') 
 router.register(r'pos', views.POSViewSet, basename='pos') 
+router.register(r'operaciones', views.SalidaVentaHibridaViewSet, basename='operaciones') 
 
 urlpatterns = [
     path('api/v1/', include(router.urls)),

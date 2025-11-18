@@ -736,7 +736,7 @@ class POSViewSet(viewsets.ViewSet):
             producto = models.Producto.objects.get(id_producto=data['id_producto'])
             
             # Calculate values
-            multiplicar_por = producto.id_tipo_producto.contenido
+            multiplicar_por = 2
             total_cancelar = data['cantidad'] * float(multiplicar_por)
             
             # 🔥 CORRECCIÓN: Usar el nombre correcto "Completada" y "Pagado"
@@ -880,3 +880,38 @@ class ClienteViewSet(viewsets.ModelViewSet):
             })
         
         return Response(datos)
+    
+
+class SalidaVentaHibridaViewSet(viewsets.ViewSet):
+    
+    def list(self, request):
+        """Obtener todas las operaciones: salidas + ventas POS"""
+        # Obtener salidas
+        salidas = models.Salida.objects.all().order_by('-fecha', '-hora')
+        salidas_data = serializer.SalidaVentaHibridaSerializer(salidas, many=True).data
+        
+        # Obtener ventas POS (puedes filtrar por algún criterio si es necesario)
+        ventas_pos = models.Venta.objects.all().order_by('-fecha', '-hora')
+        ventas_data = serializer.VentaPOSSerializer(ventas_pos, many=True).data
+        
+        # Combinar y ordenar por fecha/hora
+        todas_operaciones = salidas_data + ventas_data
+        todas_operaciones.sort(key=lambda x: (x['fecha'], x['hora']), reverse=True)
+        
+        return Response(todas_operaciones)
+    
+    @action(detail=False, methods=['get'])
+    def operaciones_hoy(self, request):
+        """Obtener operaciones de hoy"""
+        hoy = timezone.now().date()
+        
+        salidas_hoy = models.Salida.objects.filter(fecha=hoy)
+        salidas_data = serializer.SalidaVentaHibridaSerializer(salidas_hoy, many=True).data
+        
+        ventas_hoy = models.Venta.objects.filter(fecha=hoy)
+        ventas_data = serializer.VentaPOSSerializer(ventas_hoy, many=True).data
+        
+        todas_operaciones = salidas_data + ventas_data
+        todas_operaciones.sort(key=lambda x: x['hora'], reverse=True)
+        
+        return Response(todas_operaciones)
