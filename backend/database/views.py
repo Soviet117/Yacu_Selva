@@ -714,3 +714,204 @@ class MovimientoCajaViewSet(viewsets.ViewSet):
             return 'yape'
         else:
             return 'efectivo'
+        
+# In your views.py - add this to your existing ViewSet or create a new one
+class POSViewSet(viewsets.ViewSet):
+    
+    @action(detail=False, methods=['post'])
+    def registrar_salida_pos(self, request):
+        try:
+            from . import serializer as app_serializer
+            
+            pos_serializer = app_serializer.POSSalidaSerializer(data=request.data)
+            if not pos_serializer.is_valid():
+                return Response(pos_serializer.errors, status=400)
+            
+            data = pos_serializer.validated_data
+            
+            # Get the worker (should be Jefe de Planta or Asistente)
+            trabajador = models.Trabajador.objects.get(id_trabajador=data['id_trabajador'])
+            
+            # Get the product
+            producto = models.Producto.objects.get(id_producto=data['id_producto'])
+            
+            # Calculate values
+            multiplicar_por = 2
+            total_cancelar = data['cantidad'] * float(multiplicar_por)
+            
+            # 🔥 CORRECCIÓN: Usar el nombre correcto "Completada" y "Pagado"
+            try:
+                estado_salida = models.EstadoSalida.objects.get(nom_estado_salida="Completada")  # 🔥 Cambiado a "Completada"
+            except models.EstadoSalida.DoesNotExist:
+                # Si no existe, usar el que tenga ID 2
+                estado_salida = models.EstadoSalida.objects.get(id_estado_salida=2)
+            
+            try:
+                estado_pago = models.EstadoPago.objects.get(nom_estado="Pagado")
+            except models.EstadoPago.DoesNotExist:
+                # Si no existe, usar el primero disponible
+                estado_pago = models.EstadoPago.objects.first()
+            
+            print(f"🔧 Usando EstadoSalida: {estado_salida.nom_estado_salida} (ID: {estado_salida.id_estado_salida})")
+            print(f"🔧 Usando EstadoPago: {estado_pago.nom_estado} (ID: {estado_pago.id_estado})")
+            
+            # Create the Salida record
+            salida = models.Salida.objects.create(
+                id_trabajador=trabajador,
+                id_producto=producto,
+                cantidad=data['cantidad'],
+                multiplicar_por=multiplicar_por,
+                total_cancelar=total_cancelar,
+                id_estado_salida=estado_salida,
+                id_estado_pago=estado_pago,
+                fecha=timezone.now().date(),
+                hora=timezone.now().time()
+            )
+            
+            # Create payment record
+            pago = models.Pago.objects.create(
+                efectivo=total_cancelar if data['metodo_pago'] in ['efectivo', 'mixto'] else 0,
+                yape=total_cancelar if data['metodo_pago'] in ['yape', 'mixto'] else 0
+            )
+            
+            # Get or create a default detail
+            detalle_default = models.Detalle.objects.first()
+            if not detalle_default:
+                tipo_detalle_default = models.TipoDetalle.objects.first()
+                detalle_default = models.Detalle.objects.create(
+                    id_tipo_detalle=tipo_detalle_default,
+                    descripcion="Detalle automático para POS"
+                )
+            
+            # Create retorno record (since it's POS, it's immediately returned/paid)
+            retorno = models.Retorno.objects.create(
+                id_salida=salida,
+                cantidad=data['cantidad'],
+                id_pago=pago,
+                total_cancelado=total_cancelar,
+                id_detalle=detalle_default
+            )
+            
+            # If client is provided, also create a Venta record
+            if data.get('id_cliente'):
+                venta = models.Venta.objects.create(
+                    id_producto=producto,
+                    cantidad=data['cantidad'],
+                    precio_v=multiplicar_por,
+                    cobra_de=multiplicar_por,
+                    total_cancelar=total_cancelar,
+                    id_cliente=models.Cliente.objects.get(id_cliente=data['id_cliente']),
+                    fecha=timezone.now().date(),
+                    hora=timezone.now().date(),
+                    id_pago=pago,
+                    id_estado=estado_pago,
+                    total_cancelado=total_cancelar,
+                    id_trabajador=trabajador
+                )
+            
+            return Response({
+                "message": "Salida POS registrada exitosamente",
+                "salida_id": salida.id_salida,
+                "producto": producto.nom_producto,
+                "cantidad": data['cantidad'],
+                "total": float(total_cancelar),
+                "metodo_pago": data['metodo_pago']
+            }, status=201)
+            
+        except models.Trabajador.DoesNotExist:
+            return Response({"error": "Trabajador no encontrado"}, status=400)
+        except models.Producto.DoesNotExist:
+            return Response({"error": "Producto no encontrado"}, status=400)
+        except Exception as e:
+            print(f"Error registrando salida POS: {str(e)}")
+            return Response({"error": str(e)}, status=500)
+    
+    # In your views.py - add these to existing ViewSets
+    @action(detail=False, methods=['get'])
+    def trabajadores_planta(self, request):
+        """Get only plant workers (Jefe de Planta and Asistente)"""
+        trabajadores = models.Trabajador.objects.filter(
+            id_tipo_trabajador__in=[1, 2]  # IDs for Jefe de Planta and Asistente
+        ).select_related('id_persona')
+        
+        datos = []
+        for trab in trabajadores:
+            datos.append({
+                'id': trab.id_trabajador,
+                'nombre': trab.id_persona.nombre_p,
+                'apellido': trab.id_persona.apellido_p,
+                'tipo_trabajador': trab.id_tipo_trabajador.nom_tt
+            })
+        
+        return Response(datos)
+
+    @action(detail=False, methods=['get'])
+    def clientes_lista(self, request):
+        """Get all clients"""
+        clientes = models.Cliente.objects.all()
+        
+        datos = []
+        for cliente in clientes:
+            datos.append({
+                'id_cliente': cliente.id_cliente,
+                'nombre_cliente': cliente.nombre_cliente,
+                'numero': cliente.numero,
+                'direccion': cliente.direccion
+            })
+        
+        return Response(datos)
+    
+# Add this to your views.py if ClienteViewSet doesn't exist
+class ClienteViewSet(viewsets.ModelViewSet):
+    queryset = models.Cliente.objects.all()
+    
+    @action(detail=False, methods=['get'])
+    def clientes_lista(self, request):
+        """Get all clients"""
+        clientes = self.queryset.all()
+        
+        datos = []
+        for cliente in clientes:
+            datos.append({
+                'id_cliente': cliente.id_cliente,
+                'nombre_cliente': cliente.nombre_cliente,
+                'numero': cliente.numero,
+                'direccion': cliente.direccion
+            })
+        
+        return Response(datos)
+    
+
+class SalidaVentaHibridaViewSet(viewsets.ViewSet):
+    
+    def list(self, request):
+        """Obtener todas las operaciones: salidas + ventas POS"""
+        # Obtener salidas
+        salidas = models.Salida.objects.all().order_by('-fecha', '-hora')
+        salidas_data = serializer.SalidaVentaHibridaSerializer(salidas, many=True).data
+        
+        # Obtener ventas POS (puedes filtrar por algún criterio si es necesario)
+        ventas_pos = models.Venta.objects.all().order_by('-fecha', '-hora')
+        ventas_data = serializer.VentaPOSSerializer(ventas_pos, many=True).data
+        
+        # Combinar y ordenar por fecha/hora
+        todas_operaciones = salidas_data + ventas_data
+        todas_operaciones.sort(key=lambda x: (x['fecha'], x['hora']), reverse=True)
+        
+        return Response(todas_operaciones)
+    
+    @action(detail=False, methods=['get'])
+    def operaciones_hoy(self, request):
+        """Obtener operaciones de hoy"""
+        hoy = timezone.now().date()
+        
+        salidas_hoy = models.Salida.objects.filter(fecha=hoy)
+        salidas_data = serializer.SalidaVentaHibridaSerializer(salidas_hoy, many=True).data
+        
+        ventas_hoy = models.Venta.objects.filter(fecha=hoy)
+        ventas_data = serializer.VentaPOSSerializer(ventas_hoy, many=True).data
+        
+        todas_operaciones = salidas_data + ventas_data
+        todas_operaciones.sort(key=lambda x: x['hora'], reverse=True)
+        
+        return Response(todas_operaciones)

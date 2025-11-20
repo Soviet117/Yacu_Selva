@@ -320,3 +320,59 @@ class MovimientoCajaSerializer(serializers.Serializer):
     descripcion = serializers.CharField()
     metodo = serializers.ChoiceField(choices=['efectivo', 'yape', 'transferencia'])
     id_trabajador = serializers.IntegerField()  # ← AÑADIR ESTE CAMPO
+
+# In your serializers.py
+class POSSalidaSerializer(serializers.Serializer):
+    id_trabajador = serializers.IntegerField()
+    id_producto = serializers.IntegerField()
+    cantidad = serializers.IntegerField(min_value=1)
+    id_cliente = serializers.IntegerField(required=False, allow_null=True)  # Optional for POS
+    metodo_pago = serializers.ChoiceField(choices=['efectivo', 'yape', 'transferencia', 'mixto'])
+
+
+class SalidaVentaHibridaSerializer(serializers.ModelSerializer):
+    estado_pago = serializers.CharField(source='id_estado_pago.nom_estado', read_only=True)
+    nom_trabajador = serializers.CharField(source='id_trabajador.id_persona.nombre_p', read_only=True)
+    nom_producto = serializers.CharField(source='id_producto.nom_producto', read_only=True)
+    estado_salida = serializers.CharField(source='id_estado_salida.nom_estado_salida', read_only=True)
+    tipo_operacion = serializers.SerializerMethodField()  # 'salida' o 'venta_pos'
+    cliente = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = models.Salida
+        fields = [
+            'id_salida', 'nom_trabajador', 'nom_producto', 'cantidad',
+            'multiplicar_por', 'total_cancelar', 'estado_pago', 'estado_salida',
+            'fecha', 'hora', 'tipo_operacion', 'cliente'
+        ]
+    
+    def get_tipo_operacion(self, obj):
+        return 'salida'
+    
+    def get_cliente(self, obj):
+        # Para salidas normales, no hay cliente específico
+        return "Entrega"
+    
+class VentaPOSSerializer(serializers.ModelSerializer):
+    estado_pago = serializers.CharField(source='id_estado.nom_estado', read_only=True)
+    nom_trabajador = serializers.CharField(source='id_trabajador.id_persona.nombre_p', read_only=True)
+    nom_producto = serializers.CharField(source='id_producto.nom_producto', read_only=True)
+    estado_salida = serializers.SerializerMethodField()
+    tipo_operacion = serializers.SerializerMethodField()
+    cliente = serializers.CharField(source='id_cliente.nombre_cliente', read_only=True)
+    multiplicar_por = serializers.DecimalField(source='precio_v', max_digits=10, decimal_places=2, read_only=True)
+    total_cancelar = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    
+    class Meta:
+        model = models.Venta
+        fields = [
+            'id_venta', 'nom_trabajador', 'nom_producto', 'cantidad',
+            'multiplicar_por', 'total_cancelar', 'estado_pago', 'estado_salida',
+            'fecha', 'hora', 'tipo_operacion', 'cliente'
+        ]
+    
+    def get_tipo_operacion(self, obj):
+        return 'venta_pos'
+    
+    def get_estado_salida(self, obj):
+        return "Completada"  # Las ventas POS siempre están completadas
