@@ -376,3 +376,20 @@ class VentaPOSSerializer(serializers.ModelSerializer):
     
     def get_estado_salida(self, obj):
         return "Completada"  # Las ventas POS siempre están completadas
+    
+class ReporteFiltrosSerializer(serializers.Serializer):
+    fecha_inicio = serializers.DateField(required=False)
+    fecha_fin = serializers.DateField(required=False)
+    tipo_reporte = serializers.ChoiceField(
+        choices=['ventas', 'entregas', 'trabajadores', 'productos', 'completo'],
+        required=True
+    )
+    id_trabajador = serializers.IntegerField(required=False)
+    id_producto = serializers.IntegerField(required=False)
+    metodo_pago = serializers.ChoiceField(
+        choices=['todos', 'efectivo', 'yape', 'transferencia', 'mixto'],
+        required=False,
+        default='todos'
+    )
+    incluir_detalles = serializers.BooleanField(default=True)
+    vista_previa = serializers.BooleanField(default=False)  # Nuevo campo
