@@ -1,4 +1,4 @@
-from django.db.models import Sum, Q
+from django.db.models import Sum, Count
 from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -280,59 +280,6 @@ class DashboardViewSet(viewsets.ViewSet):
 
         performance_serializer = serializer.PerformanceEntregasSerializer(datos_performance, many=True)
         return Response(performance_serializer.data)
-
-class ReportesViewSet(viewsets.ViewSet):
-    
-    @action(detail=False, methods=['post'])
-    def generar_reporte(self, request):
-        try:
-            print("🎯 INICIANDO GENERACIÓN DE REPORTE...")
-            
-            from . import serializer as app_serializer
-            reporte_serializer = app_serializer.ReporteFechasSerializer(data=request.data)
-            
-            if not reporte_serializer.is_valid():
-                print("❌ Error de validación:", reporte_serializer.errors)
-                return Response(reporte_serializer.errors, status=400)
-            
-            data = reporte_serializer.validated_data
-            tipo_reporte = data.get('tipo_reporte')
-            print(f"📊 Tipo de reporte recibido: {tipo_reporte}")
-
-            from openpyxl import Workbook
-            
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Reporte YacuSelva"
-
-            ws['A1'] = "REPORTE YACU SELVA"
-            ws['A2'] = f"Tipo: {tipo_reporte.upper()}"
-            ws['A3'] = f"Fecha: {timezone.now().date()}"
-            ws['A5'] = "Métricas:"
-            ws['A6'] = "Total Ventas Hoy"
-            ws['B6'] = models.Venta.objects.filter(fecha=timezone.now().date()).count()
-            ws['A7'] = "Total Entregas Hoy" 
-            ws['B7'] = models.Salida.objects.filter(fecha=timezone.now().date()).count()
-            ws['A8'] = "Trabajadores Activos"
-            ws['B8'] = models.User.objects.filter(estado=True).count()
-
-            response = HttpResponse(
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = f'attachment; filename="reporte_{tipo_reporte}.xlsx"'
-            
-            wb.save(response)
-            print("✅ REPORTE GENERADO EXITOSAMENTE!")
-            return response
-            
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            import traceback
-            print(f"❌ TRACEBACK: {traceback.format_exc()}")
-            return Response(
-                {"error": f"Error interno: {str(e)}"}, 
-                status=500
-            )
 
 class MovimientoCajaViewSet(viewsets.ViewSet):
     
@@ -915,3 +862,594 @@ class SalidaVentaHibridaViewSet(viewsets.ViewSet):
         todas_operaciones.sort(key=lambda x: x['hora'], reverse=True)
         
         return Response(todas_operaciones)
+    
+# En tu views.py - REEMPLAZAR el ReportesViewSet actual
+
+class ReportesViewSet(viewsets.ViewSet):
+
+    @action(detail=False, methods=['post'])
+    def generar_vista_previa(self, request):
+        """Endpoint para generar vista previa del reporte"""
+        try:
+            print("🎯 INICIANDO VISTA PREVIA...")
+            
+            from . import serializer as app_serializer
+            reporte_serializer = app_serializer.ReporteFiltrosSerializer(data=request.data)
+            
+            if not reporte_serializer.is_valid():
+                print("❌ Error de validación:", reporte_serializer.errors)
+                return Response(reporte_serializer.errors, status=400)
+            
+            data = reporte_serializer.validated_data
+            tipo_reporte = data.get('tipo_reporte')
+            
+            print(f"📊 Tipo de reporte para vista previa: {tipo_reporte}")
+
+            # Generar la vista previa según el tipo
+            if tipo_reporte == 'ventas':
+                return self._generar_vista_previa_ventas(data)
+            elif tipo_reporte == 'entregas':
+                return self._generar_vista_previa_entregas(data)
+            elif tipo_reporte == 'trabajadores':
+                return self._generar_vista_previa_trabajadores(data)
+            elif tipo_reporte == 'productos':
+                return self._generar_vista_previa_productos(data)
+            else:  # completo
+                return self._generar_vista_previa_completo(data)
+            
+        except Exception as e:
+            print(f"❌ ERROR en vista previa: {str(e)}")
+            import traceback
+            print(f"❌ TRACEBACK: {traceback.format_exc()}")
+            return Response(
+                {"error": f"Error interno: {str(e)}"}, 
+                status=500
+            )
+
+    def _generar_vista_previa_ventas(self, filtros):
+        """Vista previa para reporte de ventas"""
+        ventas = models.Venta.objects.all().select_related(
+            'id_producto', 'id_cliente', 'id_trabajador', 'id_pago'
+        )
+        
+        # Aplicar filtros
+        if filtros.get('fecha_inicio'):
+            ventas = ventas.filter(fecha__gte=filtros['fecha_inicio'])
+        if filtros.get('fecha_fin'):
+            ventas = ventas.filter(fecha__lte=filtros['fecha_fin'])
+        if filtros.get('id_trabajador'):
+            ventas = ventas.filter(id_trabajador=filtros['id_trabajador'])
+        if filtros.get('id_producto'):
+            ventas = ventas.filter(id_producto=filtros['id_producto'])
+        
+        # Datos para tabla
+        datos_tabla = []
+        for venta in ventas[:10]:  # Solo primeros 10 para vista previa
+            metodo = 'efectivo'
+            if venta.id_pago:
+                if venta.id_pago.yape > 0 and venta.id_pago.efectivo > 0:
+                    metodo = 'mixto'
+                elif venta.id_pago.yape > 0:
+                    metodo = 'yape'
+            
+            datos_tabla.append({
+                'fecha': venta.fecha.strftime('%Y-%m-%d'),
+                'hora': str(venta.hora),
+                'producto': venta.id_producto.nom_producto,
+                'cantidad': venta.cantidad,
+                'precio_unitario': float(venta.precio_v),
+                'total': float(venta.total_cancelado),
+                'cliente': venta.id_cliente.nombre_cliente if venta.id_cliente else 'Cliente eventual',
+                'vendedor': f"{venta.id_trabajador.id_persona.nombre_p} {venta.id_trabajador.id_persona.apellido_p}",
+                'metodo_pago': metodo,
+            })
+        
+        # Datos para gráfico (ventas por producto)
+        ventas_por_producto = ventas.values('id_producto__nom_producto').annotate(
+            total=Sum('total_cancelado')
+        ).order_by('-total')[:5]
+        
+        grafico_ventas = [
+            {
+                'producto': item['id_producto__nom_producto'],
+                'total': float(item['total'])
+            }
+            for item in ventas_por_producto
+        ]
+        
+        return Response({
+            'total_registros': ventas.count(),
+            'total_ventas': float(ventas.aggregate(Sum('total_cancelado'))['total_cancelado__sum'] or 0),
+            'headers': ['FECHA', 'HORA', 'PRODUCTO', 'CANTIDAD', 'PRECIO UNIT.', 'TOTAL', 'CLIENTE', 'VENDEDOR', 'MÉTODO PAGO'],
+            'datos': datos_tabla,
+            'grafico_ventas': grafico_ventas
+        })
+
+    def _generar_vista_previa_entregas(self, filtros):
+        """Vista previa para reporte de entregas"""
+        salidas = models.Salida.objects.all().select_related(
+            'id_producto', 'id_trabajador', 'id_estado_salida', 'id_estado_pago'
+        )
+        
+        # Aplicar filtros
+        if filtros.get('fecha_inicio'):
+            salidas = salidas.filter(fecha__gte=filtros['fecha_inicio'])
+        if filtros.get('fecha_fin'):
+            salidas = salidas.filter(fecha__lte=filtros['fecha_fin'])
+        if filtros.get('id_trabajador'):
+            salidas = salidas.filter(id_trabajador=filtros['id_trabajador'])
+        if filtros.get('id_producto'):
+            salidas = salidas.filter(id_producto=filtros['id_producto'])
+        
+        # Datos para tabla
+        datos_tabla = []
+        for salida in salidas[:10]:
+            datos_tabla.append({
+                'fecha': salida.fecha.strftime('%Y-%m-%d'),
+                'hora': str(salida.hora),
+                'producto': salida.id_producto.nom_producto,
+                'cantidad': salida.cantidad,
+                'precio_unitario': float(salida.multiplicar_por),
+                'total_esperado': float(salida.total_cancelar),
+                'repartidor': f"{salida.id_trabajador.id_persona.nombre_p} {salida.id_trabajador.id_persona.apellido_p}",
+                'estado_entrega': salida.id_estado_salida.nom_estado_salida,
+                'estado_pago': salida.id_estado_pago.nom_estado,
+            })
+        
+        # Datos para gráfico (estados de entrega)
+        estados_entrega = salidas.values('id_estado_salida__nom_estado_salida').annotate(
+            cantidad=Count('id_salida')
+        )
+        
+        grafico_entregas = [
+            {
+                'estado': item['id_estado_salida__nom_estado_salida'],
+                'cantidad': item['cantidad']
+            }
+            for item in estados_entrega
+        ]
+        
+        return Response({
+            'total_registros': salidas.count(),
+            'headers': ['FECHA', 'HORA', 'PRODUCTO', 'CANTIDAD', 'PRECIO UNIT.', 'TOTAL ESPERADO', 'REPARTIDOR', 'ESTADO ENTREGA', 'ESTADO PAGO'],
+            'datos': datos_tabla,
+            'grafico_entregas': grafico_entregas
+        })
+
+    def _generar_vista_previa_trabajadores(self, filtros):
+        """Vista previa para reporte de trabajadores"""
+        trabajadores = models.Trabajador.objects.all().select_related(
+            'id_persona', 'id_tipo_trabajador'
+        )
+        
+        if filtros.get('id_trabajador'):
+            trabajadores = trabajadores.filter(id_trabajador=filtros['id_trabajador'])
+        
+        datos_tabla = []
+        grafico_trabajadores = []
+        
+        for trabajador in trabajadores[:10]:
+            ventas_trabajador = models.Venta.objects.filter(id_trabajador=trabajador)
+            salidas_trabajador = models.Salida.objects.filter(id_trabajador=trabajador)
+            
+            if filtros.get('fecha_inicio'):
+                ventas_trabajador = ventas_trabajador.filter(fecha__gte=filtros['fecha_inicio'])
+                salidas_trabajador = salidas_trabajador.filter(fecha__gte=filtros['fecha_inicio'])
+            if filtros.get('fecha_fin'):
+                ventas_trabajador = ventas_trabajador.filter(fecha__lte=filtros['fecha_fin'])
+                salidas_trabajador = salidas_trabajador.filter(fecha__lte=filtros['fecha_fin'])
+            
+            total_ventas = ventas_trabajador.aggregate(Sum('total_cancelado'))['total_cancelado__sum'] or 0
+            total_entregas = salidas_trabajador.count()
+            entregas_completadas = salidas_trabajador.filter(id_estado_salida=2).count()
+            
+            eficiencia = 0
+            if total_entregas > 0:
+                eficiencia = (entregas_completadas / total_entregas) * 100
+            
+            datos_tabla.append({
+                'nombre': f"{trabajador.id_persona.nombre_p} {trabajador.id_persona.apellido_p}",
+                'dni': trabajador.id_persona.dni_p,
+                'tipo_trabajador': trabajador.id_tipo_trabajador.nom_tt,
+                'total_ventas': float(total_ventas),
+                'total_entregas': total_entregas,
+                'entregas_completadas': entregas_completadas,
+                'eficiencia': round(eficiencia, 2),
+            })
+            
+            grafico_trabajadores.append({
+                'nombre': f"{trabajador.id_persona.nombre_p} {trabajador.id_persona.apellido_p}",
+                'eficiencia': round(eficiencia, 2)
+            })
+        
+        return Response({
+            'total_registros': trabajadores.count(),
+            'promedio_eficiencia': round(sum([t['eficiencia'] for t in grafico_trabajadores]) / len(grafico_trabajadores) if grafico_trabajadores else 0, 2),
+            'headers': ['NOMBRE', 'DNI', 'TIPO TRABAJADOR', 'TOTAL VENTAS', 'TOTAL ENTREGAS', 'ENTREGAS COMPLETADAS', 'EFICIENCIA (%)'],
+            'datos': datos_tabla,
+            'grafico_trabajadores': grafico_trabajadores
+        })
+
+    def _generar_vista_previa_productos(self, filtros):
+        """Vista previa para reporte de productos"""
+        from django.db.models import Count, Sum
+        
+        ventas_por_producto = models.Venta.objects.values(
+            'id_producto', 
+            'id_producto__nom_producto'
+        ).annotate(
+            total_vendido=Sum('cantidad'),
+            total_ingresos=Sum('total_cancelado'),
+            num_ventas=Count('id_venta')
+        ).order_by('-total_vendido')
+        
+        if filtros.get('fecha_inicio'):
+            ventas_por_producto = ventas_por_producto.filter(fecha__gte=filtros['fecha_inicio'])
+        if filtros.get('fecha_fin'):
+            ventas_por_producto = ventas_por_producto.filter(fecha__lte=filtros['fecha_fin'])
+        if filtros.get('id_producto'):
+            ventas_por_producto = ventas_por_producto.filter(id_producto=filtros['id_producto'])
+        
+        datos_tabla = []
+        for item in ventas_por_producto[:10]:
+            producto = models.Producto.objects.get(id_producto=item['id_producto'])
+            precio_promedio = float(item['total_ingresos']) / item['total_vendido'] if item['total_vendido'] > 0 else 0
+            
+            datos_tabla.append({
+                'producto': item['id_producto__nom_producto'],
+                'total_vendido': item['total_vendido'],
+                'total_ingresos': float(item['total_ingresos']),
+                'num_ventas': item['num_ventas'],
+                'tipo_producto': producto.id_tipo_producto.nom_tipo_p,
+                'precio_promedio': round(precio_promedio, 2),
+            })
+        
+        return Response({
+            'total_registros': ventas_por_producto.count(),
+            'headers': ['PRODUCTO', 'TOTAL VENDIDO', 'TOTAL INGRESOS', 'NÚMERO VENTAS', 'TIPO PRODUCTO', 'PRECIO PROMEDIO'],
+            'datos': datos_tabla
+        })
+
+    def _generar_vista_previa_completo(self, filtros):
+        """Vista previa para reporte completo (usa ventas como base)"""
+        return self._generar_vista_previa_ventas(filtros)
+    
+    @action(detail=False, methods=['post'])
+    def generar_reporte_flexible(self, request):
+        try:
+            print("🎯 INICIANDO GENERACIÓN DE REPORTE FLEXIBLE...")
+            
+            from . import serializer as app_serializer
+            reporte_serializer = app_serializer.ReporteFiltrosSerializer(data=request.data)
+            
+            if not reporte_serializer.is_valid():
+                print("❌ Error de validación:", reporte_serializer.errors)
+                return Response(reporte_serializer.errors, status=400)
+            
+            data = reporte_serializer.validated_data
+            tipo_reporte = data.get('tipo_reporte')
+            fecha_inicio = data.get('fecha_inicio')
+            fecha_fin = data.get('fecha_fin')
+            id_trabajador = data.get('id_trabajador')
+            id_producto = data.get('id_producto')
+            metodo_pago = data.get('metodo_pago', 'todos')
+            
+            print(f"📊 Tipo de reporte: {tipo_reporte}")
+            print(f"📅 Fecha inicio: {fecha_inicio}, Fecha fin: {fecha_fin}")
+            print(f"👤 Trabajador ID: {id_trabajador}")
+            print(f"📦 Producto ID: {id_producto}")
+
+            # Generar el reporte según el tipo
+            if tipo_reporte == 'ventas':
+                return self._generar_reporte_ventas(data)
+            elif tipo_reporte == 'entregas':
+                return self._generar_reporte_entregas(data)
+            elif tipo_reporte == 'trabajadores':
+                return self._generar_reporte_trabajadores(data)
+            elif tipo_reporte == 'productos':
+                return self._generar_reporte_productos(data)
+            else:  # completo
+                return self._generar_reporte_completo(data)
+            
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
+            import traceback
+            print(f"❌ TRACEBACK: {traceback.format_exc()}")
+            return Response(
+                {"error": f"Error interno: {str(e)}"}, 
+                status=500
+            )
+
+    def _generar_reporte_ventas(self, filtros):
+        """Generar reporte de ventas con filtros flexibles"""
+        # Aplicar filtros base
+        ventas = models.Venta.objects.all().select_related(
+            'id_producto', 'id_cliente', 'id_trabajador', 'id_pago'
+        )
+        
+        # Aplicar filtros de fecha
+        if filtros.get('fecha_inicio'):
+            ventas = ventas.filter(fecha__gte=filtros['fecha_inicio'])
+        if filtros.get('fecha_fin'):
+            ventas = ventas.filter(fecha__lte=filtros['fecha_fin'])
+            
+        # Aplicar filtro de trabajador
+        if filtros.get('id_trabajador'):
+            ventas = ventas.filter(id_trabajador=filtros['id_trabajador'])
+            
+        # Aplicar filtro de producto
+        if filtros.get('id_producto'):
+            ventas = ventas.filter(id_producto=filtros['id_producto'])
+        
+        # Preparar datos para Excel
+        datos_reporte = []
+        for venta in ventas:
+            # Determinar método de pago
+            metodo = 'efectivo'
+            if venta.id_pago:
+                if venta.id_pago.yape > 0 and venta.id_pago.efectivo > 0:
+                    metodo = 'mixto'
+                elif venta.id_pago.yape > 0:
+                    metodo = 'yape'
+            
+            datos_reporte.append({
+                'fecha': venta.fecha,
+                'hora': venta.hora,
+                'producto': venta.id_producto.nom_producto,
+                'cantidad': venta.cantidad,
+                'precio_unitario': float(venta.precio_v),
+                'total': float(venta.total_cancelado),
+                'cliente': venta.id_cliente.nombre_cliente if venta.id_cliente else 'Cliente eventual',
+                'vendedor': f"{venta.id_trabajador.id_persona.nombre_p} {venta.id_trabajador.id_persona.apellido_p}",
+                'metodo_pago': metodo,
+                'estado': venta.id_estado.nom_estado
+            })
+        
+        return self._crear_excel_ventas(datos_reporte, filtros)
+
+    def _generar_reporte_entregas(self, filtros):
+        """Generar reporte de entregas con filtros flexibles"""
+        # Aplicar filtros base
+        salidas = models.Salida.objects.all().select_related(
+            'id_producto', 'id_trabajador', 'id_estado_salida', 'id_estado_pago'
+        )
+        
+        # Aplicar filtros de fecha
+        if filtros.get('fecha_inicio'):
+            salidas = salidas.filter(fecha__gte=filtros['fecha_inicio'])
+        if filtros.get('fecha_fin'):
+            salidas = salidas.filter(fecha__lte=filtros['fecha_fin'])
+            
+        # Aplicar filtro de trabajador
+        if filtros.get('id_trabajador'):
+            salidas = salidas.filter(id_trabajador=filtros['id_trabajador'])
+            
+        # Aplicar filtro de producto
+        if filtros.get('id_producto'):
+            salidas = salidas.filter(id_producto=filtros['id_producto'])
+        
+        # Preparar datos para Excel
+        datos_reporte = []
+        for salida in salidas:
+            datos_reporte.append({
+                'fecha': salida.fecha,
+                'hora': salida.hora,
+                'producto': salida.id_producto.nom_producto,
+                'cantidad': salida.cantidad,
+                'precio_unitario': float(salida.multiplicar_por),
+                'total_esperado': float(salida.total_cancelar),
+                'repartidor': f"{salida.id_trabajador.id_persona.nombre_p} {salida.id_trabajador.id_persona.apellido_p}",
+                'estado_entrega': salida.id_estado_salida.nom_estado_salida,
+                'estado_pago': salida.id_estado_pago.nom_estado,
+                'tipo_trabajador': salida.id_trabajador.id_tipo_trabajador.nom_tt
+            })
+        
+        return self._crear_excel_entregas(datos_reporte, filtros)
+
+    def _generar_reporte_trabajadores(self, filtros):
+        """Generar reporte de desempeño de trabajadores"""
+        trabajadores = models.Trabajador.objects.all().select_related(
+            'id_persona', 'id_tipo_trabajador'
+        )
+        
+        # Aplicar filtro por tipo de trabajador si se especifica
+        if filtros.get('id_trabajador'):
+            trabajadores = trabajadores.filter(id_trabajador=filtros['id_trabajador'])
+        
+        datos_reporte = []
+        for trabajador in trabajadores:
+            # Estadísticas del trabajador
+            ventas_trabajador = models.Venta.objects.filter(id_trabajador=trabajador)
+            salidas_trabajador = models.Salida.objects.filter(id_trabajador=trabajador)
+            
+            # Aplicar filtros de fecha si existen
+            if filtros.get('fecha_inicio'):
+                ventas_trabajador = ventas_trabajador.filter(fecha__gte=filtros['fecha_inicio'])
+                salidas_trabajador = salidas_trabajador.filter(fecha__gte=filtros['fecha_inicio'])
+            if filtros.get('fecha_fin'):
+                ventas_trabajador = ventas_trabajador.filter(fecha__lte=filtros['fecha_fin'])
+                salidas_trabajador = salidas_trabajador.filter(fecha__lte=filtros['fecha_fin'])
+            
+            total_ventas = ventas_trabajador.aggregate(Sum('total_cancelado'))['total_cancelado__sum'] or 0
+            total_entregas = salidas_trabajador.count()
+            entregas_completadas = salidas_trabajador.filter(id_estado_salida=2).count()
+            
+            eficiencia = 0
+            if total_entregas > 0:
+                eficiencia = (entregas_completadas / total_entregas) * 100
+            
+            datos_reporte.append({
+                'nombre': f"{trabajador.id_persona.nombre_p} {trabajador.id_persona.apellido_p}",
+                'dni': trabajador.id_persona.dni_p,
+                'tipo_trabajador': trabajador.id_tipo_trabajador.nom_tt,
+                'total_ventas': float(total_ventas),
+                'total_entregas': total_entregas,
+                'entregas_completadas': entregas_completadas,
+                'eficiencia': round(eficiencia, 2),
+                'sueldo': float(trabajador.sueldo)
+            })
+        
+        return self._crear_excel_trabajadores(datos_reporte, filtros)
+
+    def _generar_reporte_productos(self, filtros):
+        """Generar reporte de productos más vendidos"""
+        from django.db.models import Count, Sum
+        
+        # Agrupar ventas por producto
+        ventas_por_producto = models.Venta.objects.values(
+            'id_producto', 
+            'id_producto__nom_producto'
+        ).annotate(
+            total_vendido=Sum('cantidad'),
+            total_ingresos=Sum('total_cancelado'),
+            num_ventas=Count('id_venta')
+        ).order_by('-total_vendido')
+        
+        # Aplicar filtros de fecha
+        if filtros.get('fecha_inicio'):
+            ventas_por_producto = ventas_por_producto.filter(fecha__gte=filtros['fecha_inicio'])
+        if filtros.get('fecha_fin'):
+            ventas_por_producto = ventas_por_producto.filter(fecha__lte=filtros['fecha_fin'])
+            
+        # Aplicar filtro de producto específico
+        if filtros.get('id_producto'):
+            ventas_por_producto = ventas_por_producto.filter(id_producto=filtros['id_producto'])
+        
+        datos_reporte = []
+        for item in ventas_por_producto:
+            producto = models.Producto.objects.get(id_producto=item['id_producto'])
+            datos_reporte.append({
+                'producto': item['id_producto__nom_producto'],
+                'total_vendido': item['total_vendido'],
+                'total_ingresos': float(item['total_ingresos']),
+                'num_ventas': item['num_ventas'],
+                'tipo_producto': producto.id_tipo_producto.nom_tipo_p,
+                'precio_promedio': float(item['total_ingresos']) / item['total_vendido'] if item['total_vendido'] > 0 else 0
+            })
+        
+        return self._crear_excel_productos(datos_reporte, filtros)
+
+    def _generar_reporte_completo(self, filtros):
+        """Generar reporte completo combinado"""
+        # Aquí puedes combinar datos de múltiples reportes
+        # Por simplicidad, usaremos el de ventas como base
+        return self._generar_reporte_ventas(filtros)
+
+    # Métodos para crear Excel (similar al de caja pero adaptado)
+    def _crear_excel_ventas(self, datos, filtros):
+        return self._crear_excel_profesional(
+            datos, 
+            "REPORTE DE VENTAS - YACU SELVA", 
+            filtros,
+            ['FECHA', 'HORA', 'PRODUCTO', 'CANTIDAD', 'PRECIO UNIT.', 'TOTAL', 'CLIENTE', 'VENDEDOR', 'MÉTODO PAGO', 'ESTADO']
+        )
+
+    def _crear_excel_entregas(self, datos, filtros):
+        return self._crear_excel_profesional(
+            datos,
+            "REPORTE DE ENTREGAS - YACU SELVA",
+            filtros,
+            ['FECHA', 'HORA', 'PRODUCTO', 'CANTIDAD', 'PRECIO UNIT.', 'TOTAL ESPERADO', 'REPARTIDOR', 'ESTADO ENTREGA', 'ESTADO PAGO', 'TIPO TRABAJADOR']
+        )
+
+    def _crear_excel_trabajadores(self, datos, filtros):
+        return self._crear_excel_profesional(
+            datos,
+            "REPORTE DE TRABAJADORES - YACU SELVA",
+            filtros,
+            ['NOMBRE', 'DNI', 'TIPO TRABAJADOR', 'TOTAL VENTAS', 'TOTAL ENTREGAS', 'ENTREGAS COMPLETADAS', 'EFICIENCIA (%)', 'SUELDO']
+        )
+
+    def _crear_excel_productos(self, datos, filtros):
+        return self._crear_excel_profesional(
+            datos,
+            "REPORTE DE PRODUCTOS - YACU SELVA",
+            filtros,
+            ['PRODUCTO', 'TOTAL VENDIDO', 'TOTAL INGRESOS', 'NÚMERO VENTAS', 'TIPO PRODUCTO', 'PRECIO PROMEDIO']
+        )
+
+    def _crear_excel_profesional(self, datos, titulo, filtros, headers):
+        """Método base para crear Excel profesional (similar al de caja)"""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reporte"
+        
+        # Estilos (usar los mismos que en el reporte de caja)
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="2C5F2D", end_color="2C5F2D", fill_type="solid")
+        title_font = Font(bold=True, size=16, color="2C5F2D")
+        subheader_font = Font(bold=True, size=12)
+        border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                       top=Side(style='thin'), bottom=Side(style='thin'))
+        center_align = Alignment(horizontal='center', vertical='center')
+        
+        # Título principal
+        ws.merge_cells(f'A1:{get_column_letter(len(headers))}1')
+        ws['A1'] = titulo
+        ws['A1'].font = title_font
+        ws['A1'].alignment = center_align
+        
+        # Información del reporte
+        ws.merge_cells(f'A2:{get_column_letter(len(headers))}2')
+        periodo = "PERIODO: "
+        if filtros.get('fecha_inicio') and filtros.get('fecha_fin'):
+            periodo += f"{filtros['fecha_inicio']} al {filtros['fecha_fin']}"
+        elif filtros.get('fecha_inicio'):
+            periodo += f"Desde {filtros['fecha_inicio']}"
+        elif filtros.get('fecha_fin'):
+            periodo += f"Hasta {filtros['fecha_fin']}"
+        else:
+            periodo += "Todos los registros"
+            
+        if filtros.get('id_trabajador'):
+            periodo += f" | TRABAJADOR: {filtros['id_trabajador']}"
+        if filtros.get('id_producto'):
+            periodo += f" | PRODUCTO: {filtros['id_producto']}"
+            
+        ws['A2'] = periodo
+        ws['A2'].font = subheader_font
+        ws['A2'].alignment = center_align
+        
+        # Fecha de generación
+        ws.merge_cells(f'A3:{get_column_letter(len(headers))}3')
+        ws['A3'] = f"Generado el: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        ws['A3'].alignment = center_align
+        
+        # Espacio
+        ws.row_dimensions[4].height = 5
+        
+        # Encabezados de columnas
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+        
+        # Datos
+        row_num = 6
+        for dato in datos:
+            for col, (key, value) in enumerate(dato.items(), 1):
+                cell = ws.cell(row=row_num, column=col, value=value)
+                cell.border = border
+                # Formatear números
+                if isinstance(value, (int, float)) and col > 1:
+                    cell.number_format = '#,##0.00'
+            row_num += 1
+        
+        # Ajustar anchos de columnas
+        for i in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(i)].width = 15
+        
+        # Preparar respuesta
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+        # Nombre del archivo
+        fecha = datetime.now().strftime('%Y%m%d_%H%M%S')
+        nombre_archivo = f"reporte_{filtros['tipo_reporte']}_{fecha}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        
+        wb.save(response)
+        return response
