@@ -121,7 +121,7 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         """Retorna el serializer apropiado según la acción"""
         if self.action == 'list':
-            return serializer.TrabajadorListSerializer
+            return serializer.TrabajadorReadSerializer
         elif self.action == 'retrieve':
             return serializer.TrabajadorReadSerializer
         elif self.action == 'create':
@@ -151,14 +151,37 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
         return Response(read_serializer.data)
     
     def destroy(self, request, *args, **kwargs):
-        """Eliminar trabajador"""
-        instance = self.get_object()
-        persona = instance.id_persona
-
-        self.perform_destroy(instance)
+        """Eliminar trabajador con manejo de errores mejorado"""
+        try:
+            instance = self.get_object()
+            persona = instance.id_persona
+            
+            # Verificar si el trabajador tiene operaciones relacionadas
+            tiene_ventas = models.Venta.objects.filter(id_trabajador=instance).exists()
+            tiene_salidas = models.Salida.objects.filter(id_trabajador=instance).exists()
+            
+            if tiene_ventas or tiene_salidas:
+                return Response(
+                    {"error": "No se puede eliminar el trabajador porque tiene operaciones registradas. Considere desactivarlo en lugar de eliminarlo."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Eliminar trabajador y persona
+            self.perform_destroy(instance)
+            persona.delete()  # Eliminar también la persona asociada
+            
+            return Response(
+                {"message": "Trabajador eliminado exitosamente"},
+                status=status.HTTP_200_OK
+            )
         
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    
+        except Exception as e:
+            print(f"Error eliminando trabajador: {str(e)}")
+            return Response(
+                {"error": f"Error al eliminar trabajador: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['get'])
     def por_tipo(self, request):
         """Filtrar trabajadores por tipo"""
@@ -178,6 +201,78 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
         trabajador = self.get_object()
         ser = serializer.TrabajadorReadSerializer(trabajador)
         return Response(ser.data)
+    
+    @action(detail=False, methods=['post'])
+    def generar_vista_previa(self, request):
+        """Endpoint para vista previa de trabajadores"""
+        try:
+            from . import serializer as app_serializer
+            reporte_serializer = app_serializer.ReporteFiltrosSerializer(data=request.data)
+            
+            if not reporte_serializer.is_valid():
+                return Response(reporte_serializer.errors, status=400)
+            
+            data = reporte_serializer.validated_data
+            return self._generar_vista_previa_trabajadores(data)
+            
+        except Exception as e:
+            print(f"❌ ERROR en vista previa trabajadores: {str(e)}")
+            return Response({"error": f"Error interno: {str(e)}"}, status=500)
+
+    def _generar_vista_previa_trabajadores(self, filtros):
+        """Vista previa para reporte de trabajadores"""
+        trabajadores = models.Trabajador.objects.all().select_related(
+            'id_persona', 'id_tipo_trabajador'
+        )
+        
+        if filtros.get('id_trabajador'):
+            trabajadores = trabajadores.filter(id_trabajador=filtros['id_trabajador'])
+        
+        datos_tabla = []
+        grafico_trabajadores = []
+        
+        for trabajador in trabajadores[:10]:  # Solo primeros 10 para vista previa
+            ventas_trabajador = models.Venta.objects.filter(id_trabajador=trabajador)
+            salidas_trabajador = models.Salida.objects.filter(id_trabajador=trabajador)
+            
+            # Aplicar filtros de fecha si existen
+            if filtros.get('fecha_inicio'):
+                ventas_trabajador = ventas_trabajador.filter(fecha__gte=filtros['fecha_inicio'])
+                salidas_trabajador = salidas_trabajador.filter(fecha__gte=filtros['fecha_inicio'])
+            if filtros.get('fecha_fin'):
+                ventas_trabajador = ventas_trabajador.filter(fecha__lte=filtros['fecha_fin'])
+                salidas_trabajador = salidas_trabajador.filter(fecha__lte=filtros['fecha_fin'])
+            
+            total_ventas = ventas_trabajador.aggregate(Sum('total_cancelado'))['total_cancelado__sum'] or 0
+            total_entregas = salidas_trabajador.count()
+            entregas_completadas = salidas_trabajador.filter(id_estado_salida=2).count()
+            
+            eficiencia = 0
+            if total_entregas > 0:
+                eficiencia = (entregas_completadas / total_entregas) * 100
+            
+            datos_tabla.append({
+                'nombre': f"{trabajador.id_persona.nombre_p} {trabajador.id_persona.apellido_p}",
+                'dni': trabajador.id_persona.dni_p,
+                'tipo_trabajador': trabajador.id_tipo_trabajador.nom_tt,
+                'total_ventas': float(total_ventas),
+                'total_entregas': total_entregas,
+                'entregas_completadas': entregas_completadas,
+                'eficiencia': round(eficiencia, 2),
+            })
+            
+            grafico_trabajadores.append({
+                'nombre': f"{trabajador.id_persona.nombre_p} {trabajador.id_persona.apellido_p}",
+                'eficiencia': round(eficiencia, 2)
+            })
+        
+        return Response({
+            'total_registros': trabajadores.count(),
+            'promedio_eficiencia': round(sum([t['eficiencia'] for t in grafico_trabajadores]) / len(grafico_trabajadores) if grafico_trabajadores else 0, 2),
+            'headers': ['NOMBRE', 'DNI', 'TIPO TRABAJADOR', 'TOTAL VENTAS', 'TOTAL ENTREGAS', 'ENTREGAS COMPLETADAS', 'EFICIENCIA (%)'],
+            'datos': datos_tabla,
+            'grafico_trabajadores': grafico_trabajadores
+        })
     
 class TipoTrabajadorViewSet(viewsets.ModelViewSet):
     queryset = models.TipoTrabajador.objects.all()
