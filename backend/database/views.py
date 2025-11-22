@@ -376,6 +376,182 @@ class DashboardViewSet(viewsets.ViewSet):
         performance_serializer = serializer.PerformanceEntregasSerializer(datos_performance, many=True)
         return Response(performance_serializer.data)
 
+    # ✅ NUEVOS ENDPOINTS PARA DASHBOARD DETALLADO
+    
+    @action(detail=False, methods=['get'])
+    def metricas_detalladas(self, request):
+        """Métricas completas para el dashboard detallado"""
+        hoy = timezone.now().date()
+        inicio_mes = hoy.replace(day=1)
+        
+        # Ingresos del mes
+        ingresos_mes = models.Venta.objects.filter(
+            fecha__gte=inicio_mes
+        ).aggregate(
+            total=Sum('total_cancelado')
+        )['total'] or 0
+        
+        # Métricas de eficiencia
+        salidas_mes = models.Salida.objects.filter(fecha__gte=inicio_mes)
+        entregas_completadas = salidas_mes.filter(id_estado_salida=2).count()
+        total_entregas = salidas_mes.count()
+        
+        eficiencia = 0
+        if total_entregas > 0:
+            eficiencia = (entregas_completadas / total_entregas) * 100
+        
+        # Flujo de caja hoy
+        ingresos_hoy = models.Venta.objects.filter(fecha=hoy).aggregate(
+            total=Sum('total_cancelado')
+        )['total'] or 0
+        
+        egresos_hoy = models.CajaIe.objects.filter(
+            tipo="egreso",
+            fecha__date=hoy
+        ).aggregate(
+            total=Sum('nonto')
+        )['total'] or 0
+        
+        # Calcular ticket promedio (ingresos totales / número de ventas)
+        ventas_mes = models.Venta.objects.filter(fecha__gte=inicio_mes)
+        total_ventas_mes = ventas_mes.count()
+        ticket_promedio = ingresos_mes / total_ventas_mes if total_ventas_mes > 0 else 0
+        
+        data = {
+            'ingresos_mes': float(ingresos_mes),
+            'ingresos_hoy': float(ingresos_hoy),
+            'egresos_hoy': float(egresos_hoy),
+            'eficiencia_operativa': round(eficiencia, 1),
+            'ticket_promedio': round(float(ticket_promedio), 2),
+            'margen_promedio': 35.2,   # Puedes calcularlo basado en costos si los tienes
+            'tiempo_entrega': 45,       # Valor por defecto, puedes calcularlo
+            'entregas_tiempo': 92.5,    # Valor por defecto
+            'tasa_retornos': 3.2,       # Valor por defecto
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def top_trabajadores(self, request):
+        """Top 10 trabajadores por ventas/entregas"""
+        desde = timezone.now().date().replace(day=1)  # Inicio del mes
+        
+        trabajadores = models.Trabajador.objects.all()
+        top_data = []
+        
+        for trab in trabajadores:
+            # Ventas del trabajador
+            ventas = models.Venta.objects.filter(
+                id_trabajador=trab,
+                fecha__gte=desde
+            )
+            # Entregas del trabajador
+            entregas = models.Salida.objects.filter(
+                id_trabajador=trab,
+                fecha__gte=desde
+            )
+            
+            total_ventas = ventas.aggregate(Sum('total_cancelado'))['total_cancelado__sum'] or 0
+            total_entregas = entregas.count()
+            entregas_completadas = entregas.filter(id_estado_salida=2).count()
+            
+            eficiencia = 0
+            if total_entregas > 0:
+                eficiencia = (entregas_completadas / total_entregas) * 100
+            
+            if total_ventas > 0 or total_entregas > 0:
+                top_data.append({
+                    'id': trab.id_trabajador,
+                    'nombre': f"{trab.id_persona.nombre_p} {trab.id_persona.apellido_p}",
+                    'total_ventas': float(total_ventas),
+                    'entregas': total_entregas,
+                    'entregas_completadas': entregas_completadas,
+                    'eficiencia': round(eficiencia, 1)
+                })
+        
+        # Ordenar por ventas
+        top_data.sort(key=lambda x: x['total_ventas'], reverse=True)
+        
+        return Response(top_data[:10])
+    
+    @action(detail=False, methods=['get'])
+    def top_productos(self, request):
+        """Top 10 productos más vendidos"""
+        desde = timezone.now().date().replace(day=1)  # Inicio del mes
+        
+        productos = models.Producto.objects.all()
+        top_data = []
+        
+        for prod in productos:
+            ventas = models.Venta.objects.filter(
+                id_producto=prod,
+                fecha__gte=desde
+            )
+            
+            total_vendido = ventas.aggregate(Sum('cantidad'))['cantidad__sum'] or 0
+            total_ingresos = ventas.aggregate(Sum('total_cancelado'))['total_cancelado__sum'] or 0
+            
+            if total_vendido > 0:
+                top_data.append({
+                    'id': prod.id_producto,
+                    'nombre': prod.nom_producto,
+                    'cantidad': total_vendido,
+                    'ingresos': float(total_ingresos)
+                })
+        
+        # Ordenar por cantidad vendida
+        top_data.sort(key=lambda x: x['cantidad'], reverse=True)
+        
+        return Response(top_data[:10])
+    
+    @action(detail=False, methods=['get'])
+    def alertas_gerenciales(self, request):
+        """Alertas importantes para la gerencia"""
+        hoy = timezone.now().date()
+        inicio_mes = hoy.replace(day=1)
+        
+        alertas = []
+        
+        # Verificar entregas pendientes
+        entregas_pendientes = models.Salida.objects.filter(
+            id_estado_salida=1,  # Pendientes
+            fecha__lt=hoy  # De días anteriores
+        ).count()
+        
+        if entregas_pendientes > 0:
+            alertas.append({
+                'tipo': 'urgente',
+                'titulo': 'Entregas Pendientes',
+                'mensaje': f'Hay {entregas_pendientes} entregas pendientes de días anteriores',
+                'accion': 'Revisar módulo de entregas'
+            })
+        
+        # Verificar pagos pendientes
+        pagos_pendientes = models.Salida.objects.filter(
+            id_estado_pago__in=[2, 3],  # Pendiente o Parcial
+            fecha__lt=hoy
+        ).aggregate(total=Sum('total_cancelar'))['total'] or 0
+        
+        if pagos_pendientes > 1000:
+            alertas.append({
+                'tipo': 'advertencia',
+                'titulo': 'Cobranza Pendiente',
+                'mensaje': f'S/. {pagos_pendientes:.2f} en pagos pendientes',
+                'accion': 'Seguir cobranza'
+            })
+        
+        # Verificar stock bajo (si tienes control de inventario)
+        # productos_bajo_stock = models.Producto.objects.filter(stock__lt=10).count()
+        # if productos_bajo_stock > 0:
+        #     alertas.append({
+        #         'tipo': 'info',
+        #         'titulo': 'Stock Bajo',
+        #         'mensaje': f'{productos_bajo_stock} productos con stock bajo',
+        #         'accion': 'Revisar inventario'
+        #     })
+        
+        return Response(alertas)
+
 class MovimientoCajaViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['post'])

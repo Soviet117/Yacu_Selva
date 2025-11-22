@@ -3,6 +3,7 @@ import TopBar from "../components/layouts/TopBar";
 import GraficoDashboard from "../components/sections/GraficoDashboard";
 import InicioDashboard from "../components/sections/InicioDashboard";
 import EndDashboard from "../components/sections/EndDashboard";
+import DetallesDashboard from "../components/sections/DetallesDashboard"; // ✅ NUEVO
 
 import { useState } from "react";
 
@@ -15,8 +16,7 @@ function Start() {
       <div className="h-screen flex-grow overflow-auto">
         <TopBar />
         <div className="p-6">
-          <p className="text-3xl font-semibold mb-6">DASHBOARD</p>
-
+          <p className="text-3xl font-semibold mb-6">DASHBOARD - YACU SELVA</p>
           {/* Tabs */}
           <div className="flex space-x-4 mb-6 border-b">
             <button
@@ -27,7 +27,7 @@ function Start() {
               }`}
               onClick={() => setTabActiva("resumen")}
             >
-              Resumen
+              📊 Resumen
             </button>
             <button
               className={`pb-2 px-4 ${
@@ -37,7 +37,7 @@ function Start() {
               }`}
               onClick={() => setTabActiva("graficos")}
             >
-              Gráficos
+              📈 Gráficos
             </button>
             <button
               className={`pb-2 px-4 ${
@@ -47,10 +47,9 @@ function Start() {
               }`}
               onClick={() => setTabActiva("detalles")}
             >
-              Detalles
+              🔍 Detalles
             </button>
           </div>
-
           {/* Contenido de Tabs */}
           {tabActiva === "resumen" && (
             <div className="space-y-6">
@@ -58,18 +57,12 @@ function Start() {
               <EndDashboard />
             </div>
           )}
-
           {tabActiva === "graficos" && <GraficoDashboard />}
-
-          {tabActiva === "detalles" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <EndDashboard />
-              {/* Aquí podrías agregar más tablas o detalles */}
-            </div>
-          )}
+          {tabActiva === "detalles" && <DetallesDashboard />} {/* ✅ NUEVO */}
         </div>
       </div>
     </div>
   );
 }
+
 export default Start;
