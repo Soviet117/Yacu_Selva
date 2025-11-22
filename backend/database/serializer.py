@@ -166,24 +166,30 @@ class TrabajadorReadSerializer(serializers.ModelSerializer):
     dni_p = serializers.CharField(source='id_persona.dni_p', read_only=True)
     direccion = serializers.CharField(source='id_persona.direccion', read_only=True)
     url_dni = serializers.CharField(source='id_persona.url_dni', read_only=True)
-    tipo_trabajador = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
-    entrada = serializers.TimeField(source='id_horario.entrada', read_only=True)
-    salida = serializers.TimeField(source='id_horario.salida', read_only=True)
-    inicio_break = serializers.TimeField(source='id_horario.inicio_break', read_only=True)
-    fin_break = serializers.TimeField(source='id_horario.fin_break', read_only=True)
+    
+    # ✅ ESTOS SON LOS CAMPOS CLAVE - LOS IDs QUE NECESITAN LOS COMBOBOX
+    id_tipo_trabajador = serializers.PrimaryKeyRelatedField(read_only=True)
+    id_horario = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    # Campos adicionales para mostrar información (opcionales)
+    tipo_trabajador_nombre = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
+    horario_entrada = serializers.TimeField(source='id_horario.entrada', read_only=True)
+    horario_salida = serializers.TimeField(source='id_horario.salida', read_only=True)
     
     class Meta:
         model = models.Trabajador
         fields = [
             'id_trabajador', 'nombre_completo', 'nombre_p', 'apellido_p', 
-            'dni_p', 'direccion', 'url_dni', 'tipo_trabajador', 
-            'entrada', 'salida', 'inicio_break', 'fin_break', 'sueldo'
+            'dni_p', 'direccion', 'url_dni', 
+            # ✅ IDs PARA LOS COMBOBOX
+            'id_tipo_trabajador', 'id_horario',
+            # Información adicional para mostrar
+            'tipo_trabajador_nombre', 'horario_entrada', 'horario_salida',
+            'sueldo'
         ]
     
     def get_nombre_completo(self, obj):
         return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"
-
-
 class TrabajadorCreateSerializer(serializers.ModelSerializer):
     nombre_p = serializers.CharField(write_only=True)
     apellido_p = serializers.CharField(write_only=True)
@@ -267,10 +273,26 @@ class TrabajadorListSerializer(serializers.ModelSerializer):
     nombre_completo = serializers.SerializerMethodField()
     tipo_trabajador = serializers.CharField(source='id_tipo_trabajador.nom_tt', read_only=True)
     dni = serializers.CharField(source='id_persona.dni_p', read_only=True)
+    # ✅ AGREGAR estos campos:
+    id_tipo_trabajador = serializers.PrimaryKeyRelatedField(read_only=True)
+    id_horario = serializers.PrimaryKeyRelatedField(read_only=True)
+    direccion = serializers.CharField(source='id_persona.direccion', read_only=True)
+    url_dni = serializers.CharField(source='id_persona.url_dni', read_only=True)
     
     class Meta:
         model = models.Trabajador
-        fields = ['id_trabajador', 'nombre_completo', 'dni', 'tipo_trabajador', 'sueldo']
+        fields = [
+            'id_trabajador', 
+            'nombre_completo', 
+            'dni', 
+            'tipo_trabajador',  
+            'sueldo',
+            # ✅ INCLUIR en fields:
+            'id_tipo_trabajador',
+            'id_horario',
+            'direccion',
+            'url_dni'
+        ]
     
     def get_nombre_completo(self, obj):
         return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"

@@ -1,27 +1,23 @@
 import axios from "axios";
+const BASE_URL = "http://127.0.0.1:8000/database/api/v1";
 
-const API_URL = "http://localhost:8000/database/api/v1/trabajadores/";
+export const loadTrabajadores = () => {
+  return axios.get(`${BASE_URL}/trabajadores/`);
+};
 
-export function loadTrabajadores() {
-  return axios.get(API_URL);
-}
+export const createTrabajador = (data) => {
+  return axios.post(`${BASE_URL}/trabajadores/`, data);
+};
 
-export function getTrabajador(id) {
-  return axios.get(`${API_URL}${id}/`);
-}
+export const updateTrabajador = (id, data) => {
+  return axios.put(`${BASE_URL}/trabajadores/${id}/`, data);
+};
 
-export function createTrabajador(formData) {
-  return axios.post(API_URL, formData);
-}
+export const deleteTrabajador = (id) => {
+  return axios.delete(`${BASE_URL}/trabajadores/${id}/`);
+};
 
-export function updateTrabajador(id, formData) {
-  return axios.patch(`${API_URL}${id}/`, formData);
-}
-
-export function deleteTrabajador(id) {
-  return axios.delete(`${API_URL}${id}/`);
-}
-
-export function getTrabajadoresPorTipo(tipoId) {
-  return axios.get(`${API_URL}por_tipo/?tipo_id=${tipoId}`);
-}
+// NUEVO: Para vista previa
+export const generarVistaPreviaTrabajadores = (filtros) => {
+  return axios.post(`${BASE_URL}/reportes/generar_vista_previa/`, filtros);
+};

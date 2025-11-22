@@ -27,17 +27,25 @@ function Trabajadores() {
   const [error, setError] = useState(null);
 
   const [formData, setFormData] = useState({
-    nombre_completo: "",
-    dni: "",
-    tipo_trabajador: "",
+    nombre_p: "",
+    apellido_p: "",
+    dni_p: "",
+    direccion: "",
+    url_dni: "",
+    id_tipo_trabajador: "",
+    id_horario: "",
     sueldo: "",
   });
 
   const [editData, setEditData] = useState({
     id_trabajador: "",
-    nombre_completo: "",
-    dni: "",
-    tipo_trabajador: "",
+    nombre_p: "",
+    apellido_p: "",
+    dni_p: "",
+    direccion: "",
+    url_dni: "",
+    id_tipo_trabajador: "",
+    id_horario: "",
     sueldo: "",
   });
 
@@ -69,50 +77,89 @@ function Trabajadores() {
       const response = await createTrabajador(formData);
       setTrabajadores([...trabajadores, response.data]);
       setFormData({
-        nombre_completo: "",
-        dni: "",
-        tipo_trabajador: "",
+        nombre_p: "",
+        apellido_p: "",
+        dni_p: "",
+        direccion: "",
+        url_dni: "",
+        id_tipo_trabajador: "",
+        id_horario: "",
         sueldo: "",
       });
       setShowAddModal(false);
+      alert("Trabajador agregado exitosamente");
     } catch (error) {
       console.error("Error al agregar trabajador:", error);
-      alert("Error al agregar trabajador");
+      alert(
+        "Error al agregar trabajador: " +
+          (error.response?.data?.detail || error.message)
+      );
     }
   };
 
-  const handleDeleteWorker = async () => {
+  const handleDeleteWorker = async (selectedWorker) => {
     if (!selectedWorker) return;
+
     try {
       await deleteTrabajador(selectedWorker.id_trabajador);
-      setTrabajadores(
-        trabajadores.filter(
-          (t) => t.id_trabajador !== selectedWorker.id_trabajador
-        )
+
+      // Actualizar la lista de trabajadores
+      setTrabajadores((prev) =>
+        prev.filter((t) => t.id_trabajador !== selectedWorker.id_trabajador)
       );
+
+      // Cerrar modal y resetear estado
       setSelectedWorker(null);
       setShowDeleteModal(false);
+
+      alert("Trabajador despedido exitosamente");
     } catch (error) {
       console.error("Error al eliminar trabajador:", error);
-      alert("Error al eliminar trabajador");
+      alert(
+        "Error al eliminar trabajador: " +
+          (error.response?.data?.detail || error.message)
+      );
+
+      // Si hay error, no cerrar el modal para que el usuario pueda intentarlo de nuevo
+      throw error; // ✅ Esto es importante para que el formulario capture el error
     }
   };
 
-  const handleEditWorker = (trabajador) => {
-    setEditData({
-      id_trabajador: trabajador.id_trabajador,
-      nombre_completo: trabajador.nombre_completo,
-      dni: trabajador.dni,
-      tipo_trabajador: trabajador.tipo_trabajador,
-      sueldo: trabajador.sueldo,
-    });
-    setShowEditModal(true);
+  const handleEditWorker = async (trabajador) => {
+    try {
+      // Obtener datos completos para edición
+      const response = await fetch(
+        `http://localhost:8000/database/api/v1/trabajadores/${trabajador.id_trabajador}/`
+      );
+      const trabajadorCompleto = await response.json();
+
+      console.log("Datos con IDs para combobox:", trabajadorCompleto); // ✅ Cambiar aquí
+
+      setEditData({
+        id_trabajador: trabajadorCompleto.id_trabajador, // ✅ Usar trabajadorCompleto
+        nombre_p: trabajadorCompleto.nombre_p || "",
+        apellido_p: trabajadorCompleto.apellido_p || "",
+        dni_p: trabajadorCompleto.dni_p || "",
+        direccion: trabajadorCompleto.direccion || "",
+        url_dni: trabajadorCompleto.url_dni || "",
+        // ✅ LOS IDs DIRECTOS PARA LOS COMBOBOX:
+        id_tipo_trabajador: trabajadorCompleto.id_tipo_trabajador || "",
+        id_horario: trabajadorCompleto.id_horario || "",
+        sueldo: trabajadorCompleto.sueldo || "",
+      });
+
+      setShowEditModal(true);
+    } catch (error) {
+      console.error("Error al cargar datos del trabajador:", error);
+      alert("Error al cargar datos del trabajador");
+    }
   };
 
   const handleUpdateWorker = async () => {
     try {
       const response = await updateTrabajador(editData.id_trabajador, editData);
 
+      // Actualizar la lista de trabajadores
       setTrabajadores((prev) =>
         prev.map((t) =>
           t.id_trabajador === response.data.id_trabajador ? response.data : t
@@ -123,15 +170,20 @@ function Trabajadores() {
       alert("Trabajador actualizado exitosamente");
     } catch (error) {
       console.error("Error al actualizar trabajador:", error);
-      alert("Error al actualizar trabajador");
+      alert(
+        "Error al actualizar trabajador: " +
+          (error.response?.data?.detail || error.message)
+      );
     }
   };
 
   const filteredWorkers = trabajadores.filter(
     (t) =>
-      t.nombre_completo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.tipo_trabajador?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.dni?.toLowerCase().includes(searchTerm.toLowerCase())
+      (t.nombre_completo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.tipo_trabajador?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.dni_p?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.dni?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      t.estado !== "inactivo" // Filtrar trabajadores activos
   );
 
   if (loading) {
@@ -160,17 +212,29 @@ function Trabajadores() {
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="text-4xl font-bold text-gray-800 mb-2">
-                TRABAJADORES
+                GESTIÓN DE TRABAJADORES
               </h1>
-              <p className="text-gray-600">Gestiona tu equipo de trabajo</p>
+              <p className="text-gray-600">
+                Administra y gestiona tu equipo de trabajo
+              </p>
             </div>
+
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+                <p className="text-red-700">{error}</p>
+              </div>
+            )}
 
             <BotonesAccion
               onAgregarClick={() => setShowAddModal(true)}
               onDespedirClick={() => setShowDeleteModal(true)}
             />
 
-            <Buscador searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+            <Buscador
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              placeholder="Buscar por nombre, DNI o tipo de trabajador..."
+            />
 
             <TablaTrabajadores
               trabajadores={filteredWorkers}
@@ -178,9 +242,10 @@ function Trabajadores() {
             />
 
             <div className="mt-4 text-gray-600">
-              Total de trabajadores: {filteredWorkers.length}
+              Total de trabajadores activos: {filteredWorkers.length}
             </div>
 
+            {/* Modal para Agregar Trabajador */}
             <Modal
               isOpen={showAddModal}
               onClose={() => setShowAddModal(false)}
@@ -196,18 +261,32 @@ function Trabajadores() {
 
             <Modal
               isOpen={showDeleteModal}
-              onClose={() => setShowDeleteModal(false)}
+              onClose={() => {
+                setShowDeleteModal(false);
+                setSelectedWorker(null);
+              }}
               title="Despedir Trabajador"
             >
               <FormularioDespedirTrabajador
-                trabajadores={trabajadores}
-                selectedWorker={selectedWorker}
-                onSelectWorker={setSelectedWorker}
-                onConfirm={handleDeleteWorker}
+                onConfirm={handleDeleteWorker} // ✅ Ahora recibe el parámetro
                 onCancel={() => {
                   setShowDeleteModal(false);
                   setSelectedWorker(null);
                 }}
+              />
+            </Modal>
+
+            {/* Modal para Editar Trabajador */}
+            <Modal
+              isOpen={showEditModal}
+              onClose={() => setShowEditModal(false)}
+              title="Editar Trabajador"
+            >
+              <FormularioEditarTrabajador
+                formData={editData}
+                onInputChange={(e) => handleInputChange(e, setEditData)}
+                onSubmit={handleUpdateWorker}
+                onCancel={() => setShowEditModal(false)}
               />
             </Modal>
           </div>
