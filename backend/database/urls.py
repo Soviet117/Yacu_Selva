@@ -18,7 +18,12 @@ router.register(r'movimientos-caja', views.MovimientoCajaViewSet, 'movimientos-c
 router.register(r'clientes', views.ClienteViewSet, basename='clientes') 
 router.register(r'pos', views.POSViewSet, basename='pos') 
 router.register(r'operaciones', views.SalidaVentaHibridaViewSet, basename='operaciones') 
+#router.register(r'login',views.login_view,'login')
+
 
 urlpatterns = [
     path('api/v1/', include(router.urls)),
+    path('api/v1/login/', views.login_view, name='login'),
+    path('api/v1/check-permission/<int:user_id>/<int:module_id>/', views.check_module_permission, name='check-permission'),
+
 ]

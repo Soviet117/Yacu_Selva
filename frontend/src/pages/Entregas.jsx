@@ -1,35 +1,34 @@
-// En tu Entregas.jsx existente - agrega estas importaciones y el botón
 import { useState } from "react";
 import { Store } from "lucide-react";
 import ModalPOS from "../components/ui/ModalPOS";
-import Menu from "../components/layouts/Menu"; // Asegúrate de tener el componente Menu importado
+import Menu from "../components/layouts/Menu";
 import TopBar from "../components/layouts/TopBar";
 import RegisES from "../components/sections/RegisES";
 import SectionTabla from "../components/sections/SectionTabla";
 
-function Entregas() {
+function Entregas({ onLogout, user }) {
   const [refreshTable, setRefleshTable] = useState(false);
-  const [isPOSModalOpen, setIsPOSModalOpen] = useState(false); // Nuevo estado para el modal
+  const [isPOSModalOpen, setIsPOSModalOpen] = useState(false);
 
   const handleRefreshTable = () => {
     setRefleshTable((prev) => !prev);
   };
 
   const handlePOSSuccess = () => {
-    handleRefreshTable(); // Refrescar la tabla cuando se complete una venta POS
+    handleRefreshTable();
   };
 
   return (
-    <div className="flex items-center">
-      <Menu />
-      <div className="h-screen flex-grow">
-        <TopBar />
+    <div className="flex">
+      <Menu onLogout={onLogout} user={user} />
+      <div className="h-screen flex-grow overflow-auto">
+        <TopBar onLogout={onLogout} user={user} />
         <div className="p-6">
           <p className="text-3xl font-semibold mb-3">
             GESTIÓN DE ENTREGAS Y SALIDAS
           </p>
 
-          {/* 🔥 NUEVO BOTÓN POS - Agrega esto */}
+          {/* Botón POS */}
           <div className="flex gap-3 mb-6">
             <button
               onClick={() => setIsPOSModalOpen(true)}
@@ -48,7 +47,7 @@ function Entregas() {
         </div>
       </div>
 
-      {/* 🔥 MODAL POS - Agrega esto al final */}
+      {/* Modal POS */}
       <ModalPOS
         isOpen={isPOSModalOpen}
         onClose={() => setIsPOSModalOpen(false)}

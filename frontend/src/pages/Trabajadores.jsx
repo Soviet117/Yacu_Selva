@@ -15,7 +15,7 @@ import {
   createTrabajador,
 } from "../api/apiTrabajadores";
 
-function Trabajadores() {
+function Trabajadores({ onLogout, user }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -121,7 +121,7 @@ function Trabajadores() {
       );
 
       // Si hay error, no cerrar el modal para que el usuario pueda intentarlo de nuevo
-      throw error; // ✅ Esto es importante para que el formulario capture el error
+      throw error;
     }
   };
 
@@ -133,16 +133,15 @@ function Trabajadores() {
       );
       const trabajadorCompleto = await response.json();
 
-      console.log("Datos con IDs para combobox:", trabajadorCompleto); // ✅ Cambiar aquí
+      console.log("Datos con IDs para combobox:", trabajadorCompleto);
 
       setEditData({
-        id_trabajador: trabajadorCompleto.id_trabajador, // ✅ Usar trabajadorCompleto
+        id_trabajador: trabajadorCompleto.id_trabajador,
         nombre_p: trabajadorCompleto.nombre_p || "",
         apellido_p: trabajadorCompleto.apellido_p || "",
         dni_p: trabajadorCompleto.dni_p || "",
         direccion: trabajadorCompleto.direccion || "",
         url_dni: trabajadorCompleto.url_dni || "",
-        // ✅ LOS IDs DIRECTOS PARA LOS COMBOBOX:
         id_tipo_trabajador: trabajadorCompleto.id_tipo_trabajador || "",
         id_horario: trabajadorCompleto.id_horario || "",
         sueldo: trabajadorCompleto.sueldo || "",
@@ -183,15 +182,15 @@ function Trabajadores() {
         t.tipo_trabajador?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.dni_p?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.dni?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      t.estado !== "inactivo" // Filtrar trabajadores activos
+      t.estado !== "inactivo"
   );
 
   if (loading) {
     return (
       <div className="flex">
-        <Menu />
+        <Menu onLogout={onLogout} user={user} />
         <div className="h-screen flex-grow overflow-y-auto">
-          <TopBar />
+          <TopBar onLogout={onLogout} user={user} />
           <div className="flex justify-center items-center h-96">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
@@ -205,9 +204,9 @@ function Trabajadores() {
 
   return (
     <div className="flex">
-      <Menu />
+      <Menu onLogout={onLogout} user={user} />
       <div className="h-screen flex-grow overflow-y-auto">
-        <TopBar />
+        <TopBar onLogout={onLogout} user={user} />
         <div className="bg-gray-50 p-6">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
@@ -268,7 +267,7 @@ function Trabajadores() {
               title="Despedir Trabajador"
             >
               <FormularioDespedirTrabajador
-                onConfirm={handleDeleteWorker} // ✅ Ahora recibe el parámetro
+                onConfirm={handleDeleteWorker}
                 onCancel={() => {
                   setShowDeleteModal(false);
                   setSelectedWorker(null);

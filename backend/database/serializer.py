@@ -415,3 +415,45 @@ class ReporteFiltrosSerializer(serializers.Serializer):
     )
     incluir_detalles = serializers.BooleanField(default=True)
     vista_previa = serializers.BooleanField(default=False)  # Nuevo campo
+
+# serializers.py
+from rest_framework import serializers
+from .models import User, Trabajador, Persona, TipoUsuario, TipoUserModulo, Modulo
+
+class UserLoginSerializer(serializers.Serializer):
+    nom_user = serializers.CharField()
+    pass_user = serializers.CharField()
+
+class ModuloSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Modulo
+        fields = ['id_modulo', 'nom_modulo']
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    tipo_usuario = serializers.CharField(source='id_tipo_user.nom_user')
+    modulos_acceso = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id_user', 
+            'nom_user', 
+            'nombre_completo',
+            'tipo_usuario',
+            'id_tipo_user',
+            'modulos_acceso'
+        ]
+
+    def get_nombre_completo(self, obj):
+        trabajador = Trabajador.objects.get(id_trabajador=obj.id_trabajador.id_trabajador)
+        persona = Persona.objects.get(id_persona=trabajador.id_persona.id_persona)
+        return f"{persona.nombre_p} {persona.apellido_p}"
+
+    def get_modulos_acceso(self, obj):
+        # Obtener los módulos a los que tiene acceso este tipo de usuario
+        modulos_acceso = TipoUserModulo.objects.filter(
+            id_tipo_user=obj.id_tipo_user.id_tipo_user
+        ).select_related('id_modulo')
+        
+        return ModuloSerializer([tu_modulo.id_modulo for tu_modulo in modulos_acceso], many=True).data

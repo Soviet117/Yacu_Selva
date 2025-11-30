@@ -12,6 +12,11 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from django.contrib.auth.hashers import check_password
+
 
 class personaView(viewsets.ModelViewSet):
     queryset = models.Persona.objects.all()
@@ -1724,3 +1729,88 @@ class ReportesViewSet(viewsets.ViewSet):
         
         wb.save(response)
         return response
+
+
+@api_view(['POST'])   
+def login_view(request):
+    """
+    Endpoint para autenticación de usuarios
+    """
+    # IMPORTAR específicamente los serializers que necesitas
+    from .serializer import UserLoginSerializer, UserProfileSerializer
+    from .models import User
+    from django.contrib.auth.hashers import check_password
+    from rest_framework.response import Response
+    from rest_framework import status
+    
+    if request.method == 'POST':
+        print("🔐 Login attempt received")
+        print(f"📧 Data: {request.data}")
+        
+        # CAMBIAR el nombre de la variable para evitar conflicto
+        login_serializer = UserLoginSerializer(data=request.data)  # ← Cambiar 'serializer' por 'login_serializer'
+        
+        if not login_serializer.is_valid():
+            print(f"❌ Datos inválidos: {login_serializer.errors}")
+            return Response({
+                'success': False,
+                'message': 'Datos inválidos',
+                'errors': login_serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        username = login_serializer.validated_data['nom_user']
+        password = login_serializer.validated_data['pass_user']
+        
+        print(f"🔍 Buscando usuario: {username}")
+        
+        try:
+            user = User.objects.get(nom_user=username, estado=True)
+            print(f"✅ Usuario encontrado: {user.nom_user}")
+            
+            # Verificar contraseña
+            if check_password(password, user.pass_user):
+                print("✅ Contraseña correcta")
+                user_data = UserProfileSerializer(user).data
+                
+                return Response({
+                    'success': True,
+                    'message': 'Login exitoso',
+                    'user': user_data
+                }, status=status.HTTP_200_OK)
+            else:
+                print("❌ Contraseña incorrecta")
+                return Response({
+                    'success': False,
+                    'message': 'Contraseña incorrecta'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+                
+        except User.DoesNotExist:
+            print("❌ Usuario no encontrado")
+            return Response({
+                'success': False,
+                'message': 'Usuario no encontrado o inactivo'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    return Response({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+# views.py - Agregar esta función
+@api_view(['GET'])
+def check_module_permission(request, user_id, module_id):
+    try:
+        user = models.User.objects.get(id_user=user_id)
+        has_permission = TipoUserModulo.objects.filter(
+            id_tipo_user=user.id_tipo_user.id_tipo_user,
+            id_modulo=module_id
+        ).exists()
+        
+        return Response({
+            'has_permission': has_permission
+        }, status=status.HTTP_200_OK)
+        
+    except models.User.DoesNotExist:
+        return Response({
+            'error': 'Usuario no encontrado'
+        }, status=status.HTTP_404_NOT_FOUND)

@@ -3,20 +3,21 @@ import TopBar from "../components/layouts/TopBar";
 import GraficoDashboard from "../components/sections/GraficoDashboard";
 import InicioDashboard from "../components/sections/InicioDashboard";
 import EndDashboard from "../components/sections/EndDashboard";
-import DetallesDashboard from "../components/sections/DetallesDashboard"; // ✅ NUEVO
+import DetallesDashboard from "../components/sections/DetallesDashboard";
 
 import { useState } from "react";
 
-function Start() {
+function Start({ onLogout, user }) {
   const [tabActiva, setTabActiva] = useState("resumen");
 
   return (
     <div className="flex">
-      <Menu />
+      <Menu onLogout={onLogout} user={user} />
       <div className="h-screen flex-grow overflow-auto">
-        <TopBar />
+        <TopBar onLogout={onLogout} user={user} />
         <div className="p-6">
           <p className="text-3xl font-semibold mb-6">DASHBOARD - YACU SELVA</p>
+
           {/* Tabs */}
           <div className="flex space-x-4 mb-6 border-b">
             <button
@@ -50,6 +51,7 @@ function Start() {
               🔍 Detalles
             </button>
           </div>
+
           {/* Contenido de Tabs */}
           {tabActiva === "resumen" && (
             <div className="space-y-6">
@@ -57,8 +59,10 @@ function Start() {
               <EndDashboard />
             </div>
           )}
+
           {tabActiva === "graficos" && <GraficoDashboard />}
-          {tabActiva === "detalles" && <DetallesDashboard />} {/* ✅ NUEVO */}
+
+          {tabActiva === "detalles" && <DetallesDashboard />}
         </div>
       </div>
     </div>

@@ -2,12 +2,12 @@ import Menu from "../components/layouts/Menu";
 import TopBar from "../components/layouts/TopBar";
 import { CardReporteFlexible } from "../components/ui/CardReporteFlexible";
 
-function Reportes() {
+function Reportes({ onLogout, user }) {
   return (
-    <div className="flex items-center">
-      <Menu />
+    <div className="flex">
+      <Menu onLogout={onLogout} user={user} />
       <div className="h-screen flex-grow overflow-auto bg-gray-50">
-        <TopBar />
+        <TopBar onLogout={onLogout} user={user} />
         <div className="p-6">
           <p className="text-3xl font-semibold mb-6">
             GESTIÓN DE REPORTES AVANZADOS
