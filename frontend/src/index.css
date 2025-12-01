@@ -1,1 +1,27 @@
 @import "tailwindcss";
+/* Agrega esto al final de tu index.css */
+.dark {
+  --tw-bg-opacity: 1;
+  background-color: rgb(17 24 39 / var(--tw-bg-opacity));
+  color: rgb(243 244 246 / var(--tw-text-opacity));
+}
+
+.dark .bg-white {
+  background-color: rgb(31 41 55 / var(--tw-bg-opacity));
+}
+
+.dark .text-gray-800 {
+  color: rgb(243 244 246 / var(--tw-text-opacity));
+}
+
+.dark .text-gray-600 {
+  color: rgb(156 163 175 / var(--tw-text-opacity));
+}
+
+.dark .border-gray-200 {
+  border-color: rgb(55 65 81 / var(--tw-border-opacity));
+}
+
+.dark .bg-gray-50 {
+  background-color: rgb(55 65 81 / var(--tw-bg-opacity));
+}

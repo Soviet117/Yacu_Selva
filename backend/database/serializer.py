@@ -457,3 +457,80 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ).select_related('id_modulo')
         
         return ModuloSerializer([tu_modulo.id_modulo for tu_modulo in modulos_acceso], many=True).data
+    
+
+# Agrega estos serializers al final de tu serializers.py
+
+class UserSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    tipo_usuario = serializers.CharField(source='id_tipo_user.nom_user', read_only=True)
+    trabajador_nombre = serializers.CharField(source='id_trabajador.id_persona.nombre_p', read_only=True)
+    trabajador_apellido = serializers.CharField(source='id_trabajador.id_persona.apellido_p', read_only=True)
+    
+    class Meta:
+        model = User
+        fields = [
+            'id_user', 
+            'nom_user', 
+            'nombre_completo',
+            'tipo_usuario',
+            'id_tipo_user',
+            'id_trabajador',
+            'trabajador_nombre',
+            'trabajador_apellido',
+            'estado'
+        ]
+        extra_kwargs = {
+            'pass_user': {'write_only': True}  # No mostrar contraseña en las respuestas
+        }
+    
+    def get_nombre_completo(self, obj):
+        try:
+            trabajador = obj.id_trabajador
+            persona = trabajador.id_persona
+            return f"{persona.nombre_p} {persona.apellido_p}"
+        except:
+            return "No asignado"
+
+class UserCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['nom_user', 'pass_user', 'id_tipo_user', 'id_trabajador', 'estado']
+    
+    def create(self, validated_data):
+        # Hashear la contraseña antes de crear el usuario
+        from django.contrib.auth.hashers import make_password
+        validated_data['pass_user'] = make_password(validated_data['pass_user'])
+        return super().create(validated_data)
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['nom_user', 'pass_user', 'id_tipo_user', 'id_trabajador', 'estado']
+    
+    def update(self, instance, validated_data):
+        # Si se proporciona una nueva contraseña, hashearla
+        if 'pass_user' in validated_data and validated_data['pass_user']:
+            from django.contrib.auth.hashers import make_password
+            validated_data['pass_user'] = make_password(validated_data['pass_user'])
+        else:
+            # Si no se proporciona contraseña, mantener la actual
+            validated_data.pop('pass_user', None)
+        
+        return super().update(instance, validated_data)
+
+class TipoUsuarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipoUsuario
+        fields = ['id_tipo_user', 'nom_user']
+
+class TrabajadorSimpleSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    dni_p = serializers.CharField(source='id_persona.dni_p', read_only=True)
+    
+    class Meta:
+        model = Trabajador
+        fields = ['id_trabajador', 'nombre_completo', 'dni_p']
+    
+    def get_nombre_completo(self, obj):
+        return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"

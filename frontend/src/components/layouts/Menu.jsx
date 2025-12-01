@@ -1,8 +1,16 @@
+// Menu.jsx - actualizado
 import NavListMenu from "../ui/NavListMenu";
 import EncabezadoMenu from "../ui/EncabezadoMenu";
 import { LogOut, User } from "lucide-react";
 
 function Menu({ onLogout, user }) {
+  // Datos del usuario con valores por defecto
+  const userData = {
+    nombre: user?.nombre_completo || user?.nom_user || "Usuario",
+    rol: user?.tipo_usuario || "Administrador",
+    email: user?.nom_user || "usuario@yacuselva.com",
+  };
+
   return (
     <div className="h-screen flex flex-col bg-white shadow-xl border-r-2 border-gray-100 w-64">
       <EncabezadoMenu
@@ -28,16 +36,12 @@ function Menu({ onLogout, user }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-800 truncate">
-              {user?.name || "Usuario"}
+              {userData.nombre}
             </p>
-            <p className="text-xs text-gray-500 truncate">
-              {user?.role || "Administrador"}
-            </p>
+            <p className="text-xs text-gray-500 truncate">{userData.rol}</p>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mb-3">
-          {user?.email || "usuario@yacuselva.com"}
-        </p>
+        <p className="text-xs text-gray-600 mb-3">{userData.email}</p>
 
         <button
           onClick={onLogout}

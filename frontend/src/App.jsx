@@ -25,6 +25,7 @@ function App() {
   }, []);
 
   const handleLogin = (userData) => {
+    console.log("📊 Datos del usuario recibidos:", userData);
     setUser(userData);
   };
 

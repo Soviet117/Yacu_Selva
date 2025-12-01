@@ -135,15 +135,6 @@ function Login({ onLogin }) {
               <p className="text-gray-600">
                 Ingrese sus credenciales para acceder al sistema
               </p>
-
-              {/* Botón de autollenado para testing */}
-              <button
-                type="button"
-                onClick={autoFill}
-                className="mt-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-2 rounded"
-              >
-                🚀 Llenar automáticamente (Testing)
-              </button>
             </div>
 
             {error && (
@@ -235,17 +226,6 @@ function Login({ onLogin }) {
                   >
                     Recuperar contraseña
                   </button>
-                </p>
-              </div>
-
-              {/* Credenciales de prueba */}
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-xs text-yellow-700 text-center">
-                  <strong>Credenciales de prueba:</strong>
-                  <br />
-                  Email: <code>admin@yacuselva.com</code>
-                  <br />
-                  Contraseña: <code>admin123</code>
                 </p>
               </div>
             </div>

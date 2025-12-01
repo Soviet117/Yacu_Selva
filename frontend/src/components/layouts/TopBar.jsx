@@ -1,12 +1,14 @@
+// TopBar.jsx - actualizado
 import { useState } from "react";
 import { LogOut, User, Bell, Settings } from "lucide-react";
+import { useUser } from "../hooks/useUser";
 
 function TopBar({ onLogout, user }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const userData = useUser(user);
 
   return (
     <div className="w-auto h-16 bg-white shadow-md flex justify-end items-center px-8">
-      {/* User info y controles */}
       <div className="flex items-center space-x-4">
         {/* Notificaciones */}
         <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
@@ -22,11 +24,9 @@ function TopBar({ onLogout, user }) {
           >
             <div className="text-end">
               <p className="text-sm font-semibold text-gray-800">
-                {user?.name || "Admin Principal"}
+                {userData.nombre}
               </p>
-              <p className="text-xs text-gray-500">
-                {user?.role || "Administrador"}
-              </p>
+              <p className="text-xs text-gray-500">{userData.rol}</p>
             </div>
             <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
               <User className="h-5 w-5 text-white" />
@@ -37,11 +37,13 @@ function TopBar({ onLogout, user }) {
             <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-medium text-gray-800">
-                  {user?.name}
+                  {userData.nombre}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-xs text-gray-500 truncate">
+                  {userData.email}
+                </p>
                 <p className="text-xs text-blue-600 font-medium mt-1">
-                  {user?.empresa || "Yacu Selva"}
+                  {userData.empresa}
                 </p>
               </div>
 

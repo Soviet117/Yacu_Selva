@@ -18,7 +18,9 @@ router.register(r'movimientos-caja', views.MovimientoCajaViewSet, 'movimientos-c
 router.register(r'clientes', views.ClienteViewSet, basename='clientes') 
 router.register(r'pos', views.POSViewSet, basename='pos') 
 router.register(r'operaciones', views.SalidaVentaHibridaViewSet, basename='operaciones') 
-#router.register(r'login',views.login_view,'login')
+router.register(r'users', views.UserViewSet, 'users')
+router.register(r'tipos-usuario', views.TipoUsuarioViewSet, 'tipos-usuario')
+router.register(r'trabajadores-sin-usuario', views.TrabajadorSinUsuarioViewSet, 'trabajadores-sin-usuario')
 
 
 urlpatterns = [

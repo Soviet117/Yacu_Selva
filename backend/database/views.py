@@ -1801,7 +1801,7 @@ def login_view(request):
 def check_module_permission(request, user_id, module_id):
     try:
         user = models.User.objects.get(id_user=user_id)
-        has_permission = TipoUserModulo.objects.filter(
+        has_permission = models.TipoUserModulo.objects.filter(
             id_tipo_user=user.id_tipo_user.id_tipo_user,
             id_modulo=module_id
         ).exists()
@@ -1814,3 +1814,120 @@ def check_module_permission(request, user_id, module_id):
         return Response({
             'error': 'Usuario no encontrado'
         }, status=status.HTTP_404_NOT_FOUND)
+    
+# Agrega estas views al final de tu views.py
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = models.User.objects.all().select_related(
+        'id_tipo_user', 
+        'id_trabajador',
+        'id_trabajador__id_persona'
+    )
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return serializer.UserCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return serializer.UserUpdateSerializer
+        return serializer.UserSerializer
+    
+    def list(self, request):
+        """Listar todos los usuarios con información completa"""
+        users = self.get_queryset()
+        user_serializer = serializer.UserSerializer(users, many=True)
+        return Response(user_serializer.data)
+    
+    def create(self, request):
+        """Crear nuevo usuario"""
+        user_serializer = serializer.UserCreateSerializer(data=request.data)
+        if user_serializer.is_valid():
+            user = user_serializer.save()
+            # Retornar el usuario creado con información completa
+            full_user_serializer = serializer.UserSerializer(user)
+            return Response(full_user_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update(self, request, pk=None):
+        """Actualizar usuario"""
+        try:
+            user = self.get_object()
+            user_serializer = serializer.UserUpdateSerializer(user, data=request.data, partial=True)
+            if user_serializer.is_valid():
+                updated_user = user_serializer.save()
+                full_user_serializer = serializer.UserSerializer(updated_user)
+                return Response(full_user_serializer.data)
+            return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except models.User.DoesNotExist:
+            return Response(
+                {"error": "Usuario no encontrado"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    def destroy(self, request, pk=None):
+        """Eliminar usuario"""
+        try:
+            user = self.get_object()
+            
+            # Verificar si el usuario está intentando eliminarse a sí mismo
+            if request.user.is_authenticated and user.id_user == request.user.id_user:
+                return Response(
+                    {"error": "No puedes eliminar tu propio usuario"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            user.delete()
+            return Response(
+                {"message": "Usuario eliminado correctamente"},
+                status=status.HTTP_200_OK
+            )
+        except models.User.DoesNotExist:
+            return Response(
+                {"error": "Usuario no encontrado"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+# Views adicionales para tipos de usuario y trabajadores
+class TipoUsuarioViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.TipoUsuario.objects.all()
+    serializer_class = serializer.TipoUsuarioSerializer
+
+class TrabajadorSinUsuarioViewSet(viewsets.ViewSet):
+    """Trabajadores que no tienen usuario asignado"""
+    
+    def list(self, request):
+        # Obtener todos los trabajadores
+        todos_trabajadores = models.Trabajador.objects.all().select_related('id_persona')
+        
+        # Obtener trabajadores que ya tienen usuario
+        trabajadores_con_usuario = models.User.objects.filter(
+            estado=True
+        ).values_list('id_trabajador', flat=True)
+        
+        # Filtrar trabajadores sin usuario
+        trabajadores_sin_usuario = todos_trabajadores.exclude(
+            id_trabajador__in=trabajadores_con_usuario
+        )
+        
+        serializer = serializer.TrabajadorSimpleSerializer(trabajadores_sin_usuario, many=True)
+        return Response(serializer.data)
+
+@api_view(['GET'])
+def user_stats(request):
+    """Estadísticas de usuarios"""
+    total_usuarios = models.User.objects.count()
+    usuarios_activos = models.User.objects.filter(estado=True).count()
+    usuarios_inactivos = models.User.objects.filter(estado=False).count()
+    
+    # Usuarios por tipo
+    usuarios_por_tipo = models.User.objects.values(
+        'id_tipo_user__nom_user'
+    ).annotate(
+        total=Count('id_user')
+    )
+    
+    return Response({
+        'total_usuarios': total_usuarios,
+        'usuarios_activos': usuarios_activos,
+        'usuarios_inactivos': usuarios_inactivos,
+        'usuarios_por_tipo': list(usuarios_por_tipo)
+    })
