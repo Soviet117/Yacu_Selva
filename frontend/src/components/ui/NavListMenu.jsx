@@ -1,3 +1,4 @@
+// components/ui/NavListMenu.jsx (si existe)
 import { NavLink } from "react-router-dom";
 
 function NavListMenu({ url, text }) {
@@ -5,12 +6,12 @@ function NavListMenu({ url, text }) {
     <NavLink
       to={url}
       className={({ isActive }) =>
-        `px-8 py-2 text-gray-500   hover:bg-blue-100 ${
-          isActive ? "bg-blue-200 border-r-4 border-blue-500" : ""
+        `flex items-center space-x-3 px-6 py-3 text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors ${
+          isActive ? "bg-blue-50 text-blue-600 border-r-4 border-blue-500" : ""
         }`
       }
     >
-      {text}
+      <span className="font-medium">{text}</span>
     </NavLink>
   );
 }

@@ -27,5 +27,5 @@ urlpatterns = [
     path('api/v1/', include(router.urls)),
     path('api/v1/login/', views.login_view, name='login'),
     path('api/v1/check-permission/<int:user_id>/<int:module_id>/', views.check_module_permission, name='check-permission'),
-
+    path('api/v1/user-modules/<int:user_id>/', views.get_user_modules, name='user-modules'),  # Nueva ruta
 ]

@@ -1977,3 +1977,46 @@ def user_stats(request):
         'usuarios_inactivos': usuarios_inactivos,
         'usuarios_por_tipo': list(usuarios_por_tipo)
     })
+
+# views.py - Agrega estas views
+
+@api_view(['GET'])
+def get_user_modules(request, user_id):
+    """Obtener los módulos permitidos para un usuario"""
+    try:
+        user = models.User.objects.get(id_user=user_id)
+        
+        # Obtener módulos permitidos para este tipo de usuario
+        user_modules = models.TipoUserModulo.objects.filter(
+            id_tipo_user=user.id_tipo_user.id_tipo_user
+        ).select_related('id_modulo')
+        
+        modules_list = []
+        for user_module in user_modules:
+            modules_list.append({
+                'id_modulo': user_module.id_modulo.id_modulo,
+                'nom_modulo': user_module.id_modulo.nom_modulo,
+                # Mapeo de módulos a rutas (ajusta según tu frontend)
+                'ruta': get_module_route(user_module.id_modulo.nom_modulo)
+            })
+        
+        return Response({
+            'modules': modules_list
+        }, status=status.HTTP_200_OK)
+        
+    except models.User.DoesNotExist:
+        return Response({
+            'error': 'Usuario no encontrado'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+def get_module_route(module_name):
+    """Mapear nombre de módulo a ruta del frontend"""
+    route_map = {
+        'Dashboard': '/inicio',           # ← Esto es lo importante
+        'Caja': '/caja',
+        'Registro de salidas': '/entregas',
+        'Reportes': '/reportes',
+        'Gestión de trabajadores': '/trabajadores',
+        'Gestión de usuarios': '/conf'
+    }
+    return route_map.get(module_name, '')
