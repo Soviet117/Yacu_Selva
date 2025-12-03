@@ -279,6 +279,48 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
             'grafico_trabajadores': grafico_trabajadores
         })
     
+    # En tu TrabajadorViewSet o donde tengas el endpoint de trabajadores-sin-usuario
+@action(detail=False, methods=['get'])
+def trabajadores_sin_usuario(self, request):
+    """
+    Retorna trabajadores sin usuario asignado.
+    Parámetro opcional: excluir_usuario=<id_user> - para incluir el trabajador de ese usuario
+    """
+    # Obtener parámetro de query string
+    usuario_excluir = request.query_params.get('excluir_usuario', None)
+    
+    # Trabajadores que NO tienen usuario
+    trabajadores_sin_usuario = models.Trabajador.objects.filter(
+        user__isnull=True
+    ).select_related('id_persona')
+    
+    # Si se está editando un usuario, incluir su trabajador actual
+    if usuario_excluir:
+        try:
+            usuario = models.User.objects.get(id_user=usuario_excluir)
+            if usuario.id_trabajador:
+                # Añadir el trabajador del usuario que se está editando
+                trabajadores_sin_usuario = trabajadores_sin_usuario | models.Trabajador.objects.filter(
+                    id_trabajador=usuario.id_trabajador.id_trabajador
+                )
+        except models.User.DoesNotExist:
+            pass
+    
+    data = []
+    for trabajador in trabajadores_sin_usuario.distinct():
+        persona = trabajador.id_persona
+        tiene_usuario = trabajador.user_set.exists()  # Verificar si tiene usuario
+        
+        data.append({
+            'id_trabajador': trabajador.id_trabajador,
+            'nombre_completo': f"{persona.nombre_p} {persona.apellido_p}",
+            'dni_p': persona.dni_p,
+            'tiene_usuario': tiene_usuario,
+            'es_usuario_actual': usuario_excluir and tiene_usuario  # Marcar si es el del usuario que editamos
+        })
+    
+    return Response(data)
+    
 class TipoTrabajadorViewSet(viewsets.ModelViewSet):
     queryset = models.TipoTrabajador.objects.all()
     serializer_class = serializer.TipoTrabajadorSerializer
@@ -1836,7 +1878,7 @@ class UserViewSet(viewsets.ModelViewSet):
         users = self.get_queryset()
         user_serializer = serializer.UserSerializer(users, many=True)
         return Response(user_serializer.data)
-    
+
     def create(self, request):
         """Crear nuevo usuario"""
         user_serializer = serializer.UserCreateSerializer(data=request.data)
@@ -1908,9 +1950,13 @@ class TrabajadorSinUsuarioViewSet(viewsets.ViewSet):
             id_trabajador__in=trabajadores_con_usuario
         )
         
-        serializer = serializer.TrabajadorSimpleSerializer(trabajadores_sin_usuario, many=True)
-        return Response(serializer.data)
-
+        # IMPORTAR específicamente el serializer
+        from .serializer import TrabajadorSimpleSerializer
+        
+        # CAMBIAR el nombre de la variable para evitar conflicto
+        trabajador_serializer = TrabajadorSimpleSerializer(trabajadores_sin_usuario, many=True)  # ← Cambia 'serializer' por 'trabajador_serializer'
+        
+        return Response(trabajador_serializer.data)
 @api_view(['GET'])
 def user_stats(request):
     """Estadísticas de usuarios"""

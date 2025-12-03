@@ -42,16 +42,6 @@ function Configuraciones({ onLogout, user }) {
             >
               👥 Gestión de Usuarios
             </button>
-            <button
-              className={`pb-2 px-4 ${
-                activeTab === "seguridad"
-                  ? "border-b-2 border-blue-500 text-blue-600 font-medium"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-              onClick={() => setActiveTab("seguridad")}
-            >
-              🔒 Seguridad
-            </button>
           </div>
 
           {/* Contenido de las tabs */}
@@ -63,12 +53,6 @@ function Configuraciones({ onLogout, user }) {
             )}
 
             {activeTab === "usuarios" && <UserManagement currentUser={user} />}
-
-            {activeTab === "seguridad" && (
-              <div className="grid grid-cols-2 gap-6">
-                <EndConf />
-              </div>
-            )}
           </div>
         </div>
       </div>

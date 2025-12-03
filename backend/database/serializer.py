@@ -470,51 +470,75 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id_user', 
+            'id_user',  # ← Solo lectura, para mostrar
             'nom_user', 
             'nombre_completo',
             'tipo_usuario',
-            'id_tipo_user',
-            'id_trabajador',
+            'id_tipo_user',  # ← Para edición
+            'id_trabajador', # ← Para edición
             'trabajador_nombre',
             'trabajador_apellido',
             'estado'
         ]
         extra_kwargs = {
-            'pass_user': {'write_only': True}  # No mostrar contraseña en las respuestas
+            'pass_user': {'write_only': True},
+            'id_tipo_user': {'write_only': True},
+            'id_trabajador': {'write_only': True},
         }
     
+    # AÑADE ESTE MÉTODO:
     def get_nombre_completo(self, obj):
-        try:
-            trabajador = obj.id_trabajador
-            persona = trabajador.id_persona
+        """
+        Retorna el nombre completo del trabajador asociado
+        """
+        if obj.id_trabajador and obj.id_trabajador.id_persona:
+            persona = obj.id_trabajador.id_persona
             return f"{persona.nombre_p} {persona.apellido_p}"
-        except:
-            return "No asignado"
-
+        return "Sin trabajador asignado"
+    
+# En serializers.py - UserCreateSerializer
 class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['nom_user', 'pass_user', 'id_tipo_user', 'id_trabajador', 'estado']
+        # Solo estos campos, NO 'id_user'
     
     def create(self, validated_data):
-        # Hashear la contraseña antes de crear el usuario
         from django.contrib.auth.hashers import make_password
-        validated_data['pass_user'] = make_password(validated_data['pass_user'])
+        
+        # Debug: Ver qué datos llegan
+        print("🔍 Datos recibidos en serializer:", validated_data)
+        
+        # Asegurar que no haya id_user
+        if 'id_user' in validated_data:
+            print("⚠️  ADVERTENCIA: Se está enviando id_user. Eliminando...")
+            validated_data.pop('id_user')
+        
+        # Hashear contraseña
+        if 'pass_user' in validated_data:
+            validated_data['pass_user'] = make_password(validated_data['pass_user'])
+        
         return super().create(validated_data)
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['nom_user', 'pass_user', 'id_tipo_user', 'id_trabajador', 'estado']
+        # NO incluir 'id_user'
+        extra_kwargs = {
+            'pass_user': {'required': False, 'allow_blank': True}
+        }
     
     def update(self, instance, validated_data):
-        # Si se proporciona una nueva contraseña, hashearla
+        # Asegurar que no se esté intentando cambiar el id
+        if 'id_user' in validated_data:
+            validated_data.pop('id_user')
+        
+        # Manejar contraseña
         if 'pass_user' in validated_data and validated_data['pass_user']:
             from django.contrib.auth.hashers import make_password
             validated_data['pass_user'] = make_password(validated_data['pass_user'])
         else:
-            # Si no se proporciona contraseña, mantener la actual
             validated_data.pop('pass_user', None)
         
         return super().update(instance, validated_data)
