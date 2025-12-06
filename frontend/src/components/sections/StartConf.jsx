@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios"; // Asegúrate de tener axios instalado: npm install axios
 import {
   Save,
   RefreshCw,
@@ -36,6 +37,7 @@ function StartConf() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false); // Nuevo estado para backup
 
   const handleSave = async () => {
     setLoading(true);
@@ -45,9 +47,44 @@ function StartConf() {
     alert("✅ Configuración guardada correctamente");
   };
 
-  const handleBackup = () => {
-    alert("🔄 Iniciando backup automático...");
-    // Aquí iría la lógica de backup
+  // Modificamos la función handleBackup
+  const handleBackup = async () => {
+    setBackupLoading(true);
+    try {
+      // Llamada a la API de Django. Asegúrate de que la URL sea la correcta.
+      const response = await axios.post(
+        "http://localhost:8000/database/api/v1/generar-backup/",
+        {},
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Si la API devuelve éxito, inicia la descarga
+        const filename = response.data.filename;
+        // La URL de descarga también debe apuntar a Django
+        const downloadUrl = `http://localhost:8000/database/api/v1/descargar-backup/${filename}/`;
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        alert("✅ Backup generado y descargado correctamente.");
+      } else {
+        alert(`❌ Error: ${response.data.message}`);
+      }
+    } catch (error) {
+      console.error("Error al generar backup:", error);
+      alert(
+        "❌ Error al generar el backup. Consulta la consola para más detalles."
+      );
+    } finally {
+      setBackupLoading(false);
+    }
   };
 
   const handleRestore = () => {
@@ -55,8 +92,10 @@ function StartConf() {
     input.type = "file";
     input.accept = ".json,.backup";
     input.onchange = (e) => {
-      alert("📁 Archivo seleccionado para restaurar");
-      // Lógica de restauración
+      alert(
+        "📁 Archivo seleccionado para restaurar. Implementa la lógica de carga y restauración en el backend."
+      );
+      // Aquí iría la lógica de restauración
     };
     input.click();
   };
@@ -111,24 +150,6 @@ function StartConf() {
               setConfig({ ...config, notificacionesSistema: checked })
             }
           />
-
-          <ToggleOption
-            label="Alertas de Stock Bajo"
-            description="Notificar cuando productos estén por agotarse"
-            checked={config.alertasStockBajo}
-            onChange={(checked) =>
-              setConfig({ ...config, alertasStockBajo: checked })
-            }
-          />
-
-          <ToggleOption
-            label="Recordatorios de Pagos"
-            description="Recordar pagos pendientes automáticamente"
-            checked={config.recordatoriosPagos}
-            onChange={(checked) =>
-              setConfig({ ...config, recordatoriosPagos: checked })
-            }
-          />
         </div>
       </div>
 
@@ -156,20 +177,6 @@ function StartConf() {
           />
 
           <SelectOption
-            label="Intentos de login fallidos"
-            description="Número de intentos antes de bloquear cuenta"
-            value={config.intentosLogin}
-            options={[
-              { value: 3, label: "3 intentos" },
-              { value: 5, label: "5 intentos" },
-              { value: 10, label: "10 intentos" },
-            ]}
-            onChange={(value) =>
-              setConfig({ ...config, intentosLogin: parseInt(value) })
-            }
-          />
-
-          <SelectOption
             label="Complejidad de contraseñas"
             description="Nivel de seguridad requerido para contraseñas"
             value={config.complejidadPassword}
@@ -188,7 +195,7 @@ function StartConf() {
         </div>
       </div>
 
-      {/* Sección de Backup y Mantenimiento */}
+      {/* Sección de Backup y Mantenimiento - Actualizada */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div className="flex items-center space-x-2 mb-4">
           <Database className="h-5 w-5 text-purple-600" />
@@ -226,10 +233,19 @@ function StartConf() {
           <div className="flex space-x-3">
             <button
               onClick={handleBackup}
-              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+              disabled={backupLoading} // Deshabilitar mientras se genera
+              className={`flex-1 py-2 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 ${
+                backupLoading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700 text-white"
+              }`}
             >
-              <Download className="h-4 w-4" />
-              <span>Backup Ahora</span>
+              {backupLoading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              <span>{backupLoading ? "Generando..." : "Backup Ahora"}</span>
             </button>
 
             <button
@@ -239,63 +255,6 @@ function StartConf() {
               <Upload className="h-4 w-4" />
               <span>Restaurar</span>
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Sección de Reportes */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="flex items-center space-x-2 mb-4">
-          <FileText className="h-5 w-5 text-orange-600" />
-          <h3 className="font-semibold dark:text-white">Reportes</h3>
-        </div>
-
-        <div className="space-y-4">
-          <SelectOption
-            label="Formato de Reportes"
-            description="Formato predeterminado para generar reportes"
-            value={config.formatoReporte}
-            options={[
-              { value: "pdf", label: "PDF" },
-              { value: "excel", label: "Excel" },
-              { value: "ambos", label: "PDF y Excel" },
-            ]}
-            onChange={(value) =>
-              setConfig({ ...config, formatoReporte: value })
-            }
-          />
-
-          <ToggleOption
-            label="Incluir Logo en Reportes"
-            description="Agregar logo de la empresa en los reportes"
-            checked={config.incluirLogo}
-            onChange={(checked) =>
-              setConfig({ ...config, incluirLogo: checked })
-            }
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email para Reportes Automáticos
-            </label>
-            <div className="flex space-x-2">
-              <input
-                type="email"
-                value={config.emailReportes}
-                onChange={(e) =>
-                  setConfig({ ...config, emailReportes: e.target.value })
-                }
-                placeholder="reportes@empresa.com"
-                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              />
-              <button
-                onClick={handleExport}
-                className="bg-gray-600 text-white px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
-              >
-                <Mail className="h-4 w-4" />
-                <span>Probar</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

@@ -2020,3 +2020,114 @@ def get_module_route(module_name):
         'Gestión de usuarios': '/conf'
     }
     return route_map.get(module_name, '')
+
+
+# Asegúrate de tener estas importaciones al principio del archivo views.py
+import json
+import os
+from datetime import datetime
+from django.http import JsonResponse, FileResponse
+from django.core.management import call_command
+from io import StringIO
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.conf import settings
+import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
+
+# REEMPLAZA las últimas dos funciones (generar_backup y descargar_backup) con esto:
+
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
+
+@api_view(['POST'])
+@csrf_exempt
+@authentication_classes([])
+@permission_classes([])
+def generar_backup(request):
+    """
+    Vista para generar un backup de la base de datos.
+    """
+    try:
+        # Crear archivo temporal
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.json', encoding='utf-8') as temp_file:
+            # Ejecutar dumpdata excluyendo tablas del sistema
+            call_command('dumpdata', 
+                        stdout=temp_file, 
+                        indent=2, 
+                        format='json',
+                        exclude=['contenttypes', 'auth.permission', 'admin.logentry', 'sessions'])
+        
+        # Renombrar con timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"yacu_selva_backup_{timestamp}.json"
+        backup_path = os.path.join(tempfile.gettempdir(), backup_filename)
+        os.rename(temp_file.name, backup_path)
+        
+        logger.info(f"Backup generado: {backup_filename}")
+        
+        return Response({
+            'success': True,
+            'message': 'Backup generado exitosamente.',
+            'filename': backup_filename,
+            'download_url': f'/database/api/v1/descargar-backup/{backup_filename}/'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error al generar backup: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Error al generar el backup: {str(e)}'
+        }, status=500)
+
+@api_view(['GET'])
+@csrf_exempt
+@authentication_classes([])
+@permission_classes([])
+def descargar_backup(request, filename):
+    """
+    Vista para descargar un archivo de backup específico.
+    """
+    try:
+        # Validar nombre de archivo
+        if not filename or not filename.endswith('.json'):
+            return Response({
+                'success': False,
+                'message': 'Nombre de archivo inválido'
+            }, status=400)
+        
+        # Ruta del archivo
+        file_path = os.path.join(tempfile.gettempdir(), filename)
+        
+        # Verificar que exista
+        if not os.path.exists(file_path):
+            return Response({
+                'success': False,
+                'message': f'Archivo no encontrado: {filename}'
+            }, status=404)
+        
+        # Crear respuesta de archivo
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type='application/json',
+            as_attachment=True,
+            filename=filename,
+        )
+        
+        # Añadir headers para CORS
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error al descargar backup: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Error al descargar archivo: {str(e)}'
+        }, status=500)
