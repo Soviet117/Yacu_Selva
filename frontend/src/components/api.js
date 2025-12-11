@@ -4,11 +4,6 @@ import axios from "axios";
 // Configuración única
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// ⚠️ AGREGA ESTO PARA DEBUG ⚠️
-console.log("🌐 API URL configurada:", API_URL);
-console.log("🔧 Modo:", import.meta.env.MODE);
-console.log("🚀 Vite env cargado:", import.meta.env);
-
 const api = axios.create({
   baseURL: API_URL,
   headers: {

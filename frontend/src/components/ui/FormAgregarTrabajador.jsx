@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const TIPOS_TRABAJADOR_URL =
-  "http://localhost:8000/database/api/v1/tipos-trabajador/";
-const HORARIOS_URL = "http://localhost:8000/database/api/v1/horarios/";
+  `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/tipos-trabajador/`;
+const HORARIOS_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/horarios/`;
 
 export function FormularioAgregarTrabajador({
   formData,

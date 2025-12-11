@@ -39,6 +39,8 @@ function StartConf() {
   const [loading, setLoading] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false); // Nuevo estado para backup
 
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
   const handleSave = async () => {
     setLoading(true);
     // Simular guardado
@@ -53,7 +55,7 @@ function StartConf() {
     try {
       // Llamada a la API de Django. Asegúrate de que la URL sea la correcta.
       const response = await axios.post(
-        "http://localhost:8000/database/api/v1/generar-backup/",
+        `${API_URL}/database/api/v1/generar-backup/`,
         {},
         {
           headers: {
@@ -66,7 +68,7 @@ function StartConf() {
         // Si la API devuelve éxito, inicia la descarga
         const filename = response.data.filename;
         // La URL de descarga también debe apuntar a Django
-        const downloadUrl = `http://localhost:8000/database/api/v1/descargar-backup/${filename}/`;
+        const downloadUrl = `${API_URL}/database/api/v1/descargar-backup/${filename}/`;
         const link = document.createElement("a");
         link.href = downloadUrl;
         link.setAttribute("download", filename);

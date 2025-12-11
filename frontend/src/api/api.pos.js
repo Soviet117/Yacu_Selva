@@ -1,7 +1,7 @@
 // En src/api/api.pos.js - VERSIÓN CORREGIDA
 import axios from "axios";
 
-const BASE_URL = "http://127.0.0.1:8000/database/api/v1";
+const BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1`;
 
 export function registrarSalidaPOS(datos) {
   return axios.post(`${BASE_URL}/pos/registrar_salida_pos/`, datos, {

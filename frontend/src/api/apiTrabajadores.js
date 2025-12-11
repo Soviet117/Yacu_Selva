@@ -1,5 +1,5 @@
 import axios from "axios";
-const BASE_URL = "http://127.0.0.1:8000/database/api/v1";
+const BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1`;
 
 export const loadTrabajadores = () => {
   return axios.get(`${BASE_URL}/trabajadores/`);

@@ -1,6 +1,10 @@
+// src/api/api.salida.js - VERSIÓN CORREGIDA
 import axios from "axios";
 
-const BASE_URL = "http://localhost:8000/database/api/v1";
+// ✅ CAMBIADO: Usar variable de entorno
+const BASE_URL = `${
+  import.meta.env.VITE_API_URL || "http://localhost:8000"
+}/database/api/v1`;
 
 // Endpoint original para salidas (mantener por compatibilidad)
 export function loadSalida() {

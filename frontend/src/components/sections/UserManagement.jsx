@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Search, User, RefreshCw } from "lucide-react";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 function UserManagement({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -51,7 +52,7 @@ function UserManagement({ currentUser }) {
   const loadUsers = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/database/api/v1/users/"
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/users/`
       );
       if (!response.ok) throw new Error("Error cargando usuarios");
       const data = await response.json();
@@ -65,7 +66,7 @@ function UserManagement({ currentUser }) {
   const loadTiposUsuario = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/database/api/v1/tipos-usuario/"
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/tipos-usuario/`
       );
       if (response.ok) {
         const data = await response.json();
@@ -80,7 +81,7 @@ function UserManagement({ currentUser }) {
   const loadTrabajadoresSinUsuario = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/database/api/v1/trabajadores-sin-usuario/"
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/trabajadores-sin-usuario/`
       );
       if (response.ok) {
         const data = await response.json();
@@ -119,7 +120,7 @@ function UserManagement({ currentUser }) {
       };
 
       const response = await fetch(
-        "http://localhost:8000/database/api/v1/users/",
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/users/`,
         {
           method: "POST",
           headers: {

@@ -10,6 +10,7 @@ import {
   Table,
 } from "lucide-react";
 import axios from "axios";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -32,8 +33,8 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
   const cargarDatosFiltros = async () => {
     try {
       const [trabRes, prodRes] = await Promise.all([
-        axios.get("http://127.0.0.1:8000/database/api/v1/trabajadores/"),
-        axios.get("http://127.0.0.1:8000/database/api/v1/producto/"),
+        axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/trabajadores/`),
+        axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/producto/`),
       ]);
 
       setTrabajadores(trabRes.data);
@@ -60,7 +61,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       });
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/database/api/v1/reportes/generar_vista_previa/",
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/reportes/generar_vista_previa/`,
         datosEnvio,
         {
           headers: {
@@ -97,7 +98,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       });
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/database/api/v1/reportes/generar_reporte_flexible/",
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/reportes/generar_reporte_flexible/`,
         datosEnvio,
         {
           responseType: "blob",

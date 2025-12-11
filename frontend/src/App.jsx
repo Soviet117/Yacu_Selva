@@ -16,7 +16,7 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   const API_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:8000/database";
+    import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database`;
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");

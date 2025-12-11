@@ -3,6 +3,7 @@ import RegistroRapidoCaja from "../ui/RegistroRapidoCaja";
 import { useState } from "react";
 import { Filter, Download, Plus, X, Calendar } from "lucide-react";
 import axios from "axios";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 function SecctionTablaCaja() {
   const [refreshKey, setRefreshKey] = useState(0);

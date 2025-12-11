@@ -1,11 +1,12 @@
 // CardReporte.jsx - Actualizado
 import axios from "axios";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export function CardReporte({ titulo, descrip, tipo }) {
   const generarReporte = async () => {
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/database/api/v1/reportes/generar_reporte/",
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/reportes/generar_reporte/`,
         { tipo_reporte: tipo },
         {
           responseType: "blob", // Importantísimo para archivos

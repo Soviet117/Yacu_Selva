@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import api from "../api";
 
 function DetallesDashboard() {
   const [metricasDetalladas, setMetricasDetalladas] = useState(null);
@@ -7,31 +8,33 @@ function DetallesDashboard() {
   const [productosTop, setProductosTop] = useState([]);
   const [alertas, setAlertas] = useState([]);
 
+  // Agrega al inicio:
+
   useEffect(() => {
     async function cargarMetricasDetalladas() {
       try {
-        // ✅ ENDPOINTS CORRECTOS - usando dashboard en lugar de reportes
+        // ✅ TODOS LOS ENDPOINTS CORREGIDOS:
         // Cargar métricas detalladas
-        const metricasResponse = await axios.get(
-          "http://127.0.0.1:8000/database/api/v1/dashboard/metricas_detalladas/"
+        const metricasResponse = await api.get(
+          "/database/api/v1/dashboard/metricas_detalladas/"
         );
         setMetricasDetalladas(metricasResponse.data);
 
         // Cargar top trabajadores
-        const trabajadoresResponse = await axios.get(
-          "http://127.0.0.1:8000/database/api/v1/dashboard/top_trabajadores/"
+        const trabajadoresResponse = await api.get(
+          "/database/api/v1/dashboard/top_trabajadores/"
         );
         setTrabajadoresTop(trabajadoresResponse.data);
 
         // Cargar top productos
-        const productosResponse = await axios.get(
-          "http://127.0.0.1:8000/database/api/v1/dashboard/top_productos/"
+        const productosResponse = await api.get(
+          "/database/api/v1/dashboard/top_productos/"
         );
         setProductosTop(productosResponse.data);
 
         // Cargar alertas gerenciales
-        const alertasResponse = await axios.get(
-          "http://127.0.0.1:8000/database/api/v1/dashboard/alertas_gerenciales/"
+        const alertasResponse = await api.get(
+          "/database/api/v1/dashboard/alertas_gerenciales/"
         );
         setAlertas(alertasResponse.data);
       } catch (error) {

@@ -44,13 +44,13 @@ allFiles.forEach((filePath) => {
       content.includes('BASE_URL = "http://') ||
       content.includes("BASE_URL = 'http://")
     ) {
-      // Reemplazar BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/...`
+      // Reemplazar BASE_URL = "http://localhost:8000/..."
       content = content.replace(
         /BASE_URL\s*=\s*["']http:\/\/localhost:8000(\/[^"']*)["']/g,
         'BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}$1`'
       );
 
-      // Reemplazar BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/...`
+      // Reemplazar BASE_URL = "http://127.0.0.1:8000/..."
       content = content.replace(
         /BASE_URL\s*=\s*["']http:\/\/127\.0\.0\.1:8000(\/[^"']*)["']/g,
         'BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}$1`'

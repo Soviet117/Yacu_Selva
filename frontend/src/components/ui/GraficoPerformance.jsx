@@ -1,5 +1,6 @@
 // GraficoPerformance.jsx
 import React, { useState, useEffect } from "react";
+import api from "../api";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,13 +32,22 @@ function GraficoPerformance() {
   const [datosPerformance, setDatosPerformance] = useState(null);
   const [vista, setVista] = useState("barras"); // 'barras' o 'resumen'
 
+  // Agrega al inicio del archivo:
+  // Si usas axios directamente:
+  // import axios from "axios";
+
   useEffect(() => {
     async function cargarDatosPerformance() {
       try {
-        const response = await axios.get(
-          "http://127.0.0.1:8000/database/api/v1/dashboard/performance_entregas/"
+        // ✅ CORRECTO:
+        const response = await api.get(
+          "/database/api/v1/dashboard/performance_entregas/"
         );
         setDatosPerformance(response.data);
+
+        // O si usas axios directamente:
+        // const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        // const response = await axios.get(`${API_URL}/database/api/v1/dashboard/performance_entregas/`);
       } catch (error) {
         console.error("Error cargando datos de performance:", error);
       }

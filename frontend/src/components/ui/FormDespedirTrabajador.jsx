@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export function FormularioDespedirTrabajador({ onConfirm, onCancel }) {
   const [trabajadores, setTrabajadores] = useState([]);
@@ -14,7 +15,7 @@ export function FormularioDespedirTrabajador({ onConfirm, onCancel }) {
   const fetchTrabajadores = async () => {
     try {
       const res = await fetch(
-        "http://localhost:8000/database/api/v1/trabajadores/"
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/database/api/v1/trabajadores/`
       );
       if (!res.ok) throw new Error("Error al obtener los trabajadores");
       const data = await res.json();
