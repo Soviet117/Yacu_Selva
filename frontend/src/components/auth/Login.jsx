@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock, Building2 } from "lucide-react";
+import api from "../api";
 
 function Login({ onLogin }) {
   const [formData, setFormData] = useState({
@@ -22,23 +23,12 @@ function Login({ onLogin }) {
     }
 
     try {
-      // CAMBIAR ESTA URL - agregar /database/ antes de /api/v1/
-      const response = await fetch(
-        "http://localhost:8000/database/api/v1/login/",
-        {
-          // ← Agregar /database/
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            nom_user: formData.email,
-            pass_user: formData.password,
-          }),
-        }
-      );
+      const response = await api.post("/database/api/v1/login/", {
+        nom_user: formData.email,
+        pass_user: formData.password,
+      });
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.success) {
         console.log("✅ Login exitoso:", data.user);

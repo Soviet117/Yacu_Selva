@@ -28,7 +28,13 @@ SECRET_KEY = 'django-insecure--_)^^!_epi764udixre-i$tnli-um6vnf!s5bb08r-0u4r=7j3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '.ngrok.io',  # Permite cualquier subdominio de ngrok
+    '.ngrok-free.app',  # Para la versión gratuita actual de ngrok
+    '.vercel.app',
+]
 
 
 # Application definition
@@ -136,5 +142,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
-    "http://127.0.0.1:5173",
+    'http://127.0.0.1:5173',
+    'https://localhost:5173',
+    'https://b492173df1d1.ngrok-free.app',
+    'https://yacu-selva-one.vercel.app',
+    'https://presentacion-yacuselva.vercel.app'
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True 
