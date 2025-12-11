@@ -144,7 +144,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'https://localhost:5173',
-    'https://b492173df1d1.ngrok-free.app',
+    'https://90f10815f3f7.ngrok-free.app',
     'https://yacu-selva-one.vercel.app',
     'https://presentacion-yacuselva.vercel.app'
 ]
