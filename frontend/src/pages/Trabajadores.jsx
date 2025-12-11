@@ -8,7 +8,6 @@ import { BotonesAccion } from "../components/ui/BotonesAccion";
 import { Buscador } from "../components/ui/Buscador";
 import TablaTrabajadores from "../components/ui/TablaTrabajadores";
 import {
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   loadTrabajadores,
   updateTrabajador,
   deleteTrabajador,
@@ -48,6 +47,8 @@ function Trabajadores({ user }) {
     id_horario: "",
     sueldo: "",
   });
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     fetchTrabajadores();
