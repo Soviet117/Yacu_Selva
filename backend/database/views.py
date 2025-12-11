@@ -12,6 +12,11 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from django.contrib.auth.hashers import check_password
+
 
 class personaView(viewsets.ModelViewSet):
     queryset = models.Persona.objects.all()
@@ -273,6 +278,48 @@ class TrabajadorViewSet(viewsets.ModelViewSet):
             'datos': datos_tabla,
             'grafico_trabajadores': grafico_trabajadores
         })
+    
+    # En tu TrabajadorViewSet o donde tengas el endpoint de trabajadores-sin-usuario
+@action(detail=False, methods=['get'])
+def trabajadores_sin_usuario(self, request):
+    """
+    Retorna trabajadores sin usuario asignado.
+    Parámetro opcional: excluir_usuario=<id_user> - para incluir el trabajador de ese usuario
+    """
+    # Obtener parámetro de query string
+    usuario_excluir = request.query_params.get('excluir_usuario', None)
+    
+    # Trabajadores que NO tienen usuario
+    trabajadores_sin_usuario = models.Trabajador.objects.filter(
+        user__isnull=True
+    ).select_related('id_persona')
+    
+    # Si se está editando un usuario, incluir su trabajador actual
+    if usuario_excluir:
+        try:
+            usuario = models.User.objects.get(id_user=usuario_excluir)
+            if usuario.id_trabajador:
+                # Añadir el trabajador del usuario que se está editando
+                trabajadores_sin_usuario = trabajadores_sin_usuario | models.Trabajador.objects.filter(
+                    id_trabajador=usuario.id_trabajador.id_trabajador
+                )
+        except models.User.DoesNotExist:
+            pass
+    
+    data = []
+    for trabajador in trabajadores_sin_usuario.distinct():
+        persona = trabajador.id_persona
+        tiene_usuario = trabajador.user_set.exists()  # Verificar si tiene usuario
+        
+        data.append({
+            'id_trabajador': trabajador.id_trabajador,
+            'nombre_completo': f"{persona.nombre_p} {persona.apellido_p}",
+            'dni_p': persona.dni_p,
+            'tiene_usuario': tiene_usuario,
+            'es_usuario_actual': usuario_excluir and tiene_usuario  # Marcar si es el del usuario que editamos
+        })
+    
+    return Response(data)
     
 class TipoTrabajadorViewSet(viewsets.ModelViewSet):
     queryset = models.TipoTrabajador.objects.all()
@@ -1724,3 +1771,363 @@ class ReportesViewSet(viewsets.ViewSet):
         
         wb.save(response)
         return response
+
+
+@api_view(['POST'])   
+def login_view(request):
+    """
+    Endpoint para autenticación de usuarios
+    """
+    # IMPORTAR específicamente los serializers que necesitas
+    from .serializer import UserLoginSerializer, UserProfileSerializer
+    from .models import User
+    from django.contrib.auth.hashers import check_password
+    from rest_framework.response import Response
+    from rest_framework import status
+    
+    if request.method == 'POST':
+        print("🔐 Login attempt received")
+        print(f"📧 Data: {request.data}")
+        
+        # CAMBIAR el nombre de la variable para evitar conflicto
+        login_serializer = UserLoginSerializer(data=request.data)  # ← Cambiar 'serializer' por 'login_serializer'
+        
+        if not login_serializer.is_valid():
+            print(f"❌ Datos inválidos: {login_serializer.errors}")
+            return Response({
+                'success': False,
+                'message': 'Datos inválidos',
+                'errors': login_serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        username = login_serializer.validated_data['nom_user']
+        password = login_serializer.validated_data['pass_user']
+        
+        print(f"🔍 Buscando usuario: {username}")
+        
+        try:
+            user = User.objects.get(nom_user=username, estado=True)
+            print(f"✅ Usuario encontrado: {user.nom_user}")
+            
+            # Verificar contraseña
+            if check_password(password, user.pass_user):
+                print("✅ Contraseña correcta")
+                user_data = UserProfileSerializer(user).data
+                
+                return Response({
+                    'success': True,
+                    'message': 'Login exitoso',
+                    'user': user_data
+                }, status=status.HTTP_200_OK)
+            else:
+                print("❌ Contraseña incorrecta")
+                return Response({
+                    'success': False,
+                    'message': 'Contraseña incorrecta'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+                
+        except User.DoesNotExist:
+            print("❌ Usuario no encontrado")
+            return Response({
+                'success': False,
+                'message': 'Usuario no encontrado o inactivo'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    return Response({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+# views.py - Agregar esta función
+@api_view(['GET'])
+def check_module_permission(request, user_id, module_id):
+    try:
+        user = models.User.objects.get(id_user=user_id)
+        has_permission = models.TipoUserModulo.objects.filter(
+            id_tipo_user=user.id_tipo_user.id_tipo_user,
+            id_modulo=module_id
+        ).exists()
+        
+        return Response({
+            'has_permission': has_permission
+        }, status=status.HTTP_200_OK)
+        
+    except models.User.DoesNotExist:
+        return Response({
+            'error': 'Usuario no encontrado'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+# Agrega estas views al final de tu views.py
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = models.User.objects.all().select_related(
+        'id_tipo_user', 
+        'id_trabajador',
+        'id_trabajador__id_persona'
+    )
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return serializer.UserCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return serializer.UserUpdateSerializer
+        return serializer.UserSerializer
+    
+    def list(self, request):
+        """Listar todos los usuarios con información completa"""
+        users = self.get_queryset()
+        user_serializer = serializer.UserSerializer(users, many=True)
+        return Response(user_serializer.data)
+
+    def create(self, request):
+        """Crear nuevo usuario"""
+        user_serializer = serializer.UserCreateSerializer(data=request.data)
+        if user_serializer.is_valid():
+            user = user_serializer.save()
+            # Retornar el usuario creado con información completa
+            full_user_serializer = serializer.UserSerializer(user)
+            return Response(full_user_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update(self, request, pk=None):
+        """Actualizar usuario"""
+        try:
+            user = self.get_object()
+            user_serializer = serializer.UserUpdateSerializer(user, data=request.data, partial=True)
+            if user_serializer.is_valid():
+                updated_user = user_serializer.save()
+                full_user_serializer = serializer.UserSerializer(updated_user)
+                return Response(full_user_serializer.data)
+            return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except models.User.DoesNotExist:
+            return Response(
+                {"error": "Usuario no encontrado"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    def destroy(self, request, pk=None):
+        """Eliminar usuario"""
+        try:
+            user = self.get_object()
+            
+            # Verificar si el usuario está intentando eliminarse a sí mismo
+            if request.user.is_authenticated and user.id_user == request.user.id_user:
+                return Response(
+                    {"error": "No puedes eliminar tu propio usuario"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            user.delete()
+            return Response(
+                {"message": "Usuario eliminado correctamente"},
+                status=status.HTTP_200_OK
+            )
+        except models.User.DoesNotExist:
+            return Response(
+                {"error": "Usuario no encontrado"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+# Views adicionales para tipos de usuario y trabajadores
+class TipoUsuarioViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.TipoUsuario.objects.all()
+    serializer_class = serializer.TipoUsuarioSerializer
+
+class TrabajadorSinUsuarioViewSet(viewsets.ViewSet):
+    """Trabajadores que no tienen usuario asignado"""
+    
+    def list(self, request):
+        # Obtener todos los trabajadores
+        todos_trabajadores = models.Trabajador.objects.all().select_related('id_persona')
+        
+        # Obtener trabajadores que ya tienen usuario
+        trabajadores_con_usuario = models.User.objects.filter(
+            estado=True
+        ).values_list('id_trabajador', flat=True)
+        
+        # Filtrar trabajadores sin usuario
+        trabajadores_sin_usuario = todos_trabajadores.exclude(
+            id_trabajador__in=trabajadores_con_usuario
+        )
+        
+        # IMPORTAR específicamente el serializer
+        from .serializer import TrabajadorSimpleSerializer
+        
+        # CAMBIAR el nombre de la variable para evitar conflicto
+        trabajador_serializer = TrabajadorSimpleSerializer(trabajadores_sin_usuario, many=True)  # ← Cambia 'serializer' por 'trabajador_serializer'
+        
+        return Response(trabajador_serializer.data)
+@api_view(['GET'])
+def user_stats(request):
+    """Estadísticas de usuarios"""
+    total_usuarios = models.User.objects.count()
+    usuarios_activos = models.User.objects.filter(estado=True).count()
+    usuarios_inactivos = models.User.objects.filter(estado=False).count()
+    
+    # Usuarios por tipo
+    usuarios_por_tipo = models.User.objects.values(
+        'id_tipo_user__nom_user'
+    ).annotate(
+        total=Count('id_user')
+    )
+    
+    return Response({
+        'total_usuarios': total_usuarios,
+        'usuarios_activos': usuarios_activos,
+        'usuarios_inactivos': usuarios_inactivos,
+        'usuarios_por_tipo': list(usuarios_por_tipo)
+    })
+
+# views.py - Agrega estas views
+
+@api_view(['GET'])
+def get_user_modules(request, user_id):
+    """Obtener los módulos permitidos para un usuario"""
+    try:
+        user = models.User.objects.get(id_user=user_id)
+        
+        # Obtener módulos permitidos para este tipo de usuario
+        user_modules = models.TipoUserModulo.objects.filter(
+            id_tipo_user=user.id_tipo_user.id_tipo_user
+        ).select_related('id_modulo')
+        
+        modules_list = []
+        for user_module in user_modules:
+            modules_list.append({
+                'id_modulo': user_module.id_modulo.id_modulo,
+                'nom_modulo': user_module.id_modulo.nom_modulo,
+                # Mapeo de módulos a rutas (ajusta según tu frontend)
+                'ruta': get_module_route(user_module.id_modulo.nom_modulo)
+            })
+        
+        return Response({
+            'modules': modules_list
+        }, status=status.HTTP_200_OK)
+        
+    except models.User.DoesNotExist:
+        return Response({
+            'error': 'Usuario no encontrado'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+def get_module_route(module_name):
+    """Mapear nombre de módulo a ruta del frontend"""
+    route_map = {
+        'Dashboard': '/inicio',           # ← Esto es lo importante
+        'Caja': '/caja',
+        'Registro de salidas': '/entregas',
+        'Reportes': '/reportes',
+        'Gestión de trabajadores': '/trabajadores',
+        'Gestión de usuarios': '/conf'
+    }
+    return route_map.get(module_name, '')
+
+
+# Asegúrate de tener estas importaciones al principio del archivo views.py
+import json
+import os
+from datetime import datetime
+from django.http import JsonResponse, FileResponse
+from django.core.management import call_command
+from io import StringIO
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.conf import settings
+import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
+
+# REEMPLAZA las últimas dos funciones (generar_backup y descargar_backup) con esto:
+
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
+
+@api_view(['POST'])
+@csrf_exempt
+@authentication_classes([])
+@permission_classes([])
+def generar_backup(request):
+    """
+    Vista para generar un backup de la base de datos.
+    """
+    try:
+        # Crear archivo temporal
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.json', encoding='utf-8') as temp_file:
+            # Ejecutar dumpdata excluyendo tablas del sistema
+            call_command('dumpdata', 
+                        stdout=temp_file, 
+                        indent=2, 
+                        format='json',
+                        exclude=['contenttypes', 'auth.permission', 'admin.logentry', 'sessions'])
+        
+        # Renombrar con timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"yacu_selva_backup_{timestamp}.json"
+        backup_path = os.path.join(tempfile.gettempdir(), backup_filename)
+        os.rename(temp_file.name, backup_path)
+        
+        logger.info(f"Backup generado: {backup_filename}")
+        
+        return Response({
+            'success': True,
+            'message': 'Backup generado exitosamente.',
+            'filename': backup_filename,
+            'download_url': f'/database/api/v1/descargar-backup/{backup_filename}/'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error al generar backup: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Error al generar el backup: {str(e)}'
+        }, status=500)
+
+@api_view(['GET'])
+@csrf_exempt
+@authentication_classes([])
+@permission_classes([])
+def descargar_backup(request, filename):
+    """
+    Vista para descargar un archivo de backup específico.
+    """
+    try:
+        # Validar nombre de archivo
+        if not filename or not filename.endswith('.json'):
+            return Response({
+                'success': False,
+                'message': 'Nombre de archivo inválido'
+            }, status=400)
+        
+        # Ruta del archivo
+        file_path = os.path.join(tempfile.gettempdir(), filename)
+        
+        # Verificar que exista
+        if not os.path.exists(file_path):
+            return Response({
+                'success': False,
+                'message': f'Archivo no encontrado: {filename}'
+            }, status=404)
+        
+        # Crear respuesta de archivo
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type='application/json',
+            as_attachment=True,
+            filename=filename,
+        )
+        
+        # Añadir headers para CORS
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error al descargar backup: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Error al descargar archivo: {str(e)}'
+        }, status=500)

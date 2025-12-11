@@ -415,3 +415,146 @@ class ReporteFiltrosSerializer(serializers.Serializer):
     )
     incluir_detalles = serializers.BooleanField(default=True)
     vista_previa = serializers.BooleanField(default=False)  # Nuevo campo
+
+# serializers.py
+from rest_framework import serializers
+from .models import User, Trabajador, Persona, TipoUsuario, TipoUserModulo, Modulo
+
+class UserLoginSerializer(serializers.Serializer):
+    nom_user = serializers.CharField()
+    pass_user = serializers.CharField()
+
+class ModuloSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Modulo
+        fields = ['id_modulo', 'nom_modulo']
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    tipo_usuario = serializers.CharField(source='id_tipo_user.nom_user')
+    modulos_acceso = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id_user', 
+            'nom_user', 
+            'nombre_completo',
+            'tipo_usuario',
+            'id_tipo_user',
+            'modulos_acceso'
+        ]
+
+    def get_nombre_completo(self, obj):
+        trabajador = Trabajador.objects.get(id_trabajador=obj.id_trabajador.id_trabajador)
+        persona = Persona.objects.get(id_persona=trabajador.id_persona.id_persona)
+        return f"{persona.nombre_p} {persona.apellido_p}"
+
+    def get_modulos_acceso(self, obj):
+        # Obtener los módulos a los que tiene acceso este tipo de usuario
+        modulos_acceso = TipoUserModulo.objects.filter(
+            id_tipo_user=obj.id_tipo_user.id_tipo_user
+        ).select_related('id_modulo')
+        
+        return ModuloSerializer([tu_modulo.id_modulo for tu_modulo in modulos_acceso], many=True).data
+    
+
+# Agrega estos serializers al final de tu serializers.py
+
+class UserSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    tipo_usuario = serializers.CharField(source='id_tipo_user.nom_user', read_only=True)
+    trabajador_nombre = serializers.CharField(source='id_trabajador.id_persona.nombre_p', read_only=True)
+    trabajador_apellido = serializers.CharField(source='id_trabajador.id_persona.apellido_p', read_only=True)
+    
+    class Meta:
+        model = User
+        fields = [
+            'id_user',  # ← Solo lectura, para mostrar
+            'nom_user', 
+            'nombre_completo',
+            'tipo_usuario',
+            'id_tipo_user',  # ← Para edición
+            'id_trabajador', # ← Para edición
+            'trabajador_nombre',
+            'trabajador_apellido',
+            'estado'
+        ]
+        extra_kwargs = {
+            'pass_user': {'write_only': True},
+            'id_tipo_user': {'write_only': True},
+            'id_trabajador': {'write_only': True},
+        }
+    
+    # AÑADE ESTE MÉTODO:
+    def get_nombre_completo(self, obj):
+        """
+        Retorna el nombre completo del trabajador asociado
+        """
+        if obj.id_trabajador and obj.id_trabajador.id_persona:
+            persona = obj.id_trabajador.id_persona
+            return f"{persona.nombre_p} {persona.apellido_p}"
+        return "Sin trabajador asignado"
+    
+# En serializers.py - UserCreateSerializer
+class UserCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['nom_user', 'pass_user', 'id_tipo_user', 'id_trabajador', 'estado']
+        # Solo estos campos, NO 'id_user'
+    
+    def create(self, validated_data):
+        from django.contrib.auth.hashers import make_password
+        
+        # Debug: Ver qué datos llegan
+        print("🔍 Datos recibidos en serializer:", validated_data)
+        
+        # Asegurar que no haya id_user
+        if 'id_user' in validated_data:
+            print("⚠️  ADVERTENCIA: Se está enviando id_user. Eliminando...")
+            validated_data.pop('id_user')
+        
+        # Hashear contraseña
+        if 'pass_user' in validated_data:
+            validated_data['pass_user'] = make_password(validated_data['pass_user'])
+        
+        return super().create(validated_data)
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['nom_user', 'pass_user', 'id_tipo_user', 'id_trabajador', 'estado']
+        # NO incluir 'id_user'
+        extra_kwargs = {
+            'pass_user': {'required': False, 'allow_blank': True}
+        }
+    
+    def update(self, instance, validated_data):
+        # Asegurar que no se esté intentando cambiar el id
+        if 'id_user' in validated_data:
+            validated_data.pop('id_user')
+        
+        # Manejar contraseña
+        if 'pass_user' in validated_data and validated_data['pass_user']:
+            from django.contrib.auth.hashers import make_password
+            validated_data['pass_user'] = make_password(validated_data['pass_user'])
+        else:
+            validated_data.pop('pass_user', None)
+        
+        return super().update(instance, validated_data)
+
+class TipoUsuarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipoUsuario
+        fields = ['id_tipo_user', 'nom_user']
+
+class TrabajadorSimpleSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+    dni_p = serializers.CharField(source='id_persona.dni_p', read_only=True)
+    
+    class Meta:
+        model = Trabajador
+        fields = ['id_trabajador', 'nombre_completo', 'dni_p']
+    
+    def get_nombre_completo(self, obj):
+        return f"{obj.id_persona.nombre_p} {obj.id_persona.apellido_p}"
