@@ -3,12 +3,12 @@ import { CardReporteFlexible } from "../components/ui/CardReporteFlexible";
 
 function Reportes({ user }) {
   return (
-    <>
-      <p className="text-3xl font-semibold mb-6">
-        GESTIÓN DE REPORTES AVANZADOS
+    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 lg:p-6">
+      <p className="text-2xl lg:text-3xl font-semibold mb-6 dark:text-white">
+        📊 GESTIÓN DE REPORTES AVANZADOS
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
         <CardReporteFlexible
           titulo={"Reporte de Ventas"}
           descrip={
@@ -50,33 +50,49 @@ function Reportes({ user }) {
       </div>
 
       {/* Información adicional */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="font-semibold text-blue-800 mb-2">
-          🎯 Características de los Reportes
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 lg:p-6">
+        <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+          <span className="text-lg">🎯</span>
+          Características de los Reportes
         </h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>
-            • <strong>Filtros flexibles:</strong> Por fecha, trabajador,
-            producto y método de pago
+        <ul className="text-sm lg:text-base text-blue-700 dark:text-blue-200 space-y-2">
+          <li className="flex items-start gap-2">
+            <span className="text-blue-800 dark:text-blue-300 mt-1">•</span>
+            <div>
+              <strong>Filtros flexibles:</strong> Por fecha, trabajador,
+              producto y método de pago
+            </div>
           </li>
-          <li>
-            • <strong>Formato profesional:</strong> Excel con diseño corporativo
+          <li className="flex items-start gap-2">
+            <span className="text-blue-800 dark:text-blue-300 mt-1">•</span>
+            <div>
+              <strong>Formato profesional:</strong> Excel con diseño corporativo
+            </div>
           </li>
-          <li>
-            • <strong>Datos en tiempo real:</strong> Información actualizada al
-            momento
+          <li className="flex items-start gap-2">
+            <span className="text-blue-800 dark:text-blue-300 mt-1">•</span>
+            <div>
+              <strong>Datos en tiempo real:</strong> Información actualizada al
+              momento
+            </div>
           </li>
-          <li>
-            • <strong>Múltiples vistas:</strong> Ventas, entregas, trabajadores
-            y productos
+          <li className="flex items-start gap-2">
+            <span className="text-blue-800 dark:text-blue-300 mt-1">•</span>
+            <div>
+              <strong>Múltiples vistas:</strong> Ventas, entregas, trabajadores
+              y productos
+            </div>
           </li>
-          <li>
-            • <strong>Métricas de eficiencia:</strong> Porcentajes de
-            completitud y rendimiento
+          <li className="flex items-start gap-2">
+            <span className="text-blue-800 dark:text-blue-300 mt-1">•</span>
+            <div>
+              <strong>Métricas de eficiencia:</strong> Porcentajes de
+              completitud y rendimiento
+            </div>
           </li>
         </ul>
       </div>
-    </>
+    </div>
   );
 }
 

@@ -18,19 +18,19 @@ function Entregas({ user }) {
   };
 
   return (
-    <>
-      <p className="text-3xl font-semibold mb-3">
+    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 lg:p-6">
+      <p className="text-2xl lg:text-3xl font-semibold mb-4 lg:mb-6 dark:text-white">
         GESTIÓN DE ENTREGAS Y SALIDAS
       </p>
 
       {/* Botón POS */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
         <button
           onClick={() => setIsPOSModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors shadow-lg hover:shadow-xl"
+          className="flex items-center gap-2 px-4 lg:px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors shadow-lg hover:shadow-xl"
         >
           <Store className="h-5 w-5" />
-          Punto de Venta
+          <span className="text-sm lg:text-base">Punto de Venta</span>
         </button>
       </div>
 
@@ -46,7 +46,7 @@ function Entregas({ user }) {
         onClose={() => setIsPOSModalOpen(false)}
         onSuccess={handlePOSSuccess}
       />
-    </>
+    </div>
   );
 }
 

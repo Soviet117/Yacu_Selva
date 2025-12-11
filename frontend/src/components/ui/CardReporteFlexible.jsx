@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Download,
   Calendar,
@@ -8,6 +8,10 @@ import {
   Eye,
   BarChart3,
   Table,
+  X,
+  Loader2,
+  CheckCircle,
+  FileSpreadsheet,
 } from "lucide-react";
 import axios from "axios";
 
@@ -15,7 +19,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false);
   const [vistaPreviaDatos, setVistaPreviaDatos] = useState(null);
-  const [tipoVista, setTipoVista] = useState("tabla"); // 'tabla' o 'grafico'
+  const [tipoVista, setTipoVista] = useState("tabla");
   const [filtros, setFiltros] = useState({
     fecha_inicio: "",
     fecha_fin: "",
@@ -28,6 +32,13 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [cargandoVistaPrevia, setCargandoVistaPrevia] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (mostrarFiltros) {
+      cargarDatosFiltros();
+    }
+  }, [mostrarFiltros]);
 
   const cargarDatosFiltros = async () => {
     try {
@@ -36,20 +47,24 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
         axios.get("http://127.0.0.1:8000/database/api/v1/producto/"),
       ]);
 
-      setTrabajadores(trabRes.data);
-      setProductos(prodRes.data);
+      setTrabajadores(trabRes.data || []);
+      setProductos(prodRes.data || []);
+      setError(null);
     } catch (error) {
       console.error("Error cargando datos:", error);
+      setError("No se pudieron cargar los datos de filtros");
     }
   };
 
   const generarVistaPrevia = async () => {
     setCargandoVistaPrevia(true);
+    setError(null);
+
     try {
       const datosEnvio = {
         tipo_reporte: tipo,
         ...filtros,
-        vista_previa: true, // Nueva bandera para vista previa
+        vista_previa: true,
       };
 
       // Limpiar campos vacíos
@@ -73,9 +88,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       setMostrarVistaPrevia(true);
     } catch (error) {
       console.error("Error generando vista previa:", error);
-      alert(
-        "Error al generar vista previa. Revisa la consola para más detalles."
-      );
+      setError("Error al generar vista previa. Verifica los datos.");
     } finally {
       setCargandoVistaPrevia(false);
     }
@@ -83,6 +96,8 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
 
   const generarReporte = async () => {
     setCargando(true);
+    setError(null);
+
     try {
       const datosEnvio = {
         tipo_reporte: tipo,
@@ -121,34 +136,49 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       window.URL.revokeObjectURL(url);
 
       setMostrarFiltros(false);
+      setMostrarVistaPrevia(false);
+
+      setTimeout(() => {
+        alert(`✅ Reporte "${titulo}" generado exitosamente`);
+      }, 100);
     } catch (error) {
       console.error("Error generando reporte:", error);
-      alert(
-        "Error al generar el reporte. Revisa la consola para más detalles."
-      );
+      setError("Error al generar el reporte. Verifica la conexión.");
     } finally {
       setCargando(false);
     }
   };
 
   const abrirFiltros = () => {
-    cargarDatosFiltros();
     setMostrarFiltros(true);
   };
 
-  // Función para renderizar gráficos simples
+  const cerrarFiltros = () => {
+    setMostrarFiltros(false);
+    setError(null);
+  };
+
+  const cerrarVistaPrevia = () => {
+    setMostrarVistaPrevia(false);
+    setError(null);
+  };
+
   const renderizarGrafico = () => {
     if (!vistaPreviaDatos) return null;
 
     if (tipo === "ventas") {
       return (
-        <div className="bg-white p-4 rounded-lg border">
-          <h4 className="font-semibold mb-4">Ventas por Producto</h4>
-          <div className="space-y-2">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
+          <h4 className="font-semibold mb-4 text-gray-800 dark:text-white">
+            Ventas por Producto
+          </h4>
+          <div className="space-y-3">
             {vistaPreviaDatos.grafico_ventas?.map((item, index) => (
               <div key={index} className="flex items-center justify-between">
-                <span className="text-sm">{item.producto}</span>
-                <div className="w-32 bg-gray-200 rounded-full h-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {item.producto}
+                </span>
+                <div className="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
                     className="bg-green-500 h-2 rounded-full"
                     style={{
@@ -165,7 +195,9 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     }}
                   ></div>
                 </div>
-                <span className="text-sm font-medium">S/ {item.total}</span>
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                  S/ {item.total}
+                </span>
               </div>
             ))}
           </div>
@@ -173,18 +205,30 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       );
     } else if (tipo === "trabajadores") {
       return (
-        <div className="bg-white p-4 rounded-lg border">
-          <h4 className="font-semibold mb-4">Eficiencia de Trabajadores</h4>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
+          <h4 className="font-semibold mb-4 text-gray-800 dark:text-white">
+            Eficiencia de Trabajadores
+          </h4>
           <div className="space-y-3">
             {vistaPreviaDatos.grafico_trabajadores?.map((item, index) => (
               <div key={index}>
                 <div className="flex justify-between text-sm mb-1">
-                  <span>{item.nombre}</span>
-                  <span>{item.eficiencia}%</span>
+                  <span className="text-gray-700 dark:text-gray-300">
+                    {item.nombre}
+                  </span>
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {item.eficiencia}%
+                  </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                   <div
-                    className="bg-blue-500 h-3 rounded-full"
+                    className={`h-3 rounded-full ${
+                      item.eficiencia >= 80
+                        ? "bg-green-500"
+                        : item.eficiencia >= 60
+                        ? "bg-yellow-500"
+                        : "bg-red-500"
+                    }`}
                     style={{ width: `${Math.min(item.eficiencia, 100)}%` }}
                   ></div>
                 </div>
@@ -195,18 +239,22 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       );
     } else if (tipo === "entregas") {
       return (
-        <div className="bg-white p-4 rounded-lg border">
-          <h4 className="font-semibold mb-4">Estados de Entrega</h4>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
+          <h4 className="font-semibold mb-4 text-gray-800 dark:text-white">
+            Estados de Entrega
+          </h4>
           <div className="grid grid-cols-2 gap-4">
             {vistaPreviaDatos.grafico_entregas?.map((item, index) => (
               <div
                 key={index}
-                className="text-center p-3 bg-gray-50 rounded-lg"
+                className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
               >
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {item.cantidad}
                 </div>
-                <div className="text-sm text-gray-600">{item.estado}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {item.estado}
+                </div>
               </div>
             ))}
           </div>
@@ -214,39 +262,57 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
       );
     }
 
-    return <div>Gráfico no disponible para este tipo de reporte</div>;
+    return (
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
+        <p className="text-gray-600 dark:text-gray-400 text-center py-4">
+          Gráfico no disponible para este tipo de reporte
+        </p>
+      </div>
+    );
   };
 
-  // Función para renderizar tabla de vista previa
   const renderizarTabla = () => {
     if (!vistaPreviaDatos) return null;
 
     const headers = vistaPreviaDatos.headers || [];
     const datos = vistaPreviaDatos.datos || [];
 
+    if (datos.length === 0) {
+      return (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
+          <p className="text-gray-600 dark:text-gray-400 text-center py-4">
+            No hay datos para mostrar con los filtros seleccionados
+          </p>
+        </div>
+      );
+    }
+
     return (
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
                 {headers.map((header, index) => (
                   <th
                     key={index}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider"
                   >
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {datos.slice(0, 10).map((fila, rowIndex) => (
-                <tr key={rowIndex}>
+                <tr
+                  key={rowIndex}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
                   {headers.map((header, colIndex) => (
                     <td
                       key={colIndex}
-                      className="px-4 py-2 text-sm text-gray-900"
+                      className="px-4 py-2 text-sm text-gray-900 dark:text-gray-300"
                     >
                       {fila[header.toLowerCase().replace(/[^a-z]/g, "_")] ||
                         fila[colIndex]}
@@ -258,7 +324,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
           </table>
         </div>
         {datos.length > 10 && (
-          <div className="bg-gray-50 px-4 py-2 text-sm text-gray-500">
+          <div className="bg-gray-50 dark:bg-gray-900 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
             Mostrando 10 de {datos.length} registros
           </div>
         )}
@@ -266,25 +332,43 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
     );
   };
 
+  const filtrosActivos =
+    filtros.fecha_inicio ||
+    filtros.fecha_fin ||
+    filtros.id_trabajador ||
+    filtros.id_producto ||
+    filtros.metodo_pago !== "todos";
+
   return (
     <>
-      <div className="bg-white shadow-lg rounded-lg p-6 border border-gray-200 hover:shadow-xl transition-all duration-300">
+      {/* Tarjeta principal */}
+      <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 lg:p-6 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="text-2xl">{icono}</span>
-              <h3 className="font-bold text-lg text-gray-800">{titulo}</h3>
+              <h3 className="font-bold text-lg text-gray-800 dark:text-white">
+                {titulo}
+              </h3>
             </div>
-            <p className="text-gray-600 text-sm">{descrip}</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm lg:text-base">
+              {descrip}
+            </p>
           </div>
         </div>
+
+        {error && mostrarFiltros && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400 rounded">
+            <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+          </div>
+        )}
 
         <div className="space-y-3">
           <button
             onClick={abrirFiltros}
-            className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors font-medium"
+            className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm lg:text-base"
           >
-            <Filter className="h-4 w-4" />
+            <Filter className="h-4 w-4 lg:h-5 lg:w-5" />
             Configurar Filtros
           </button>
 
@@ -292,16 +376,16 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
             <button
               onClick={generarVistaPrevia}
               disabled={cargandoVistaPrevia}
-              className="flex items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
+              className="flex items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 disabled:bg-gray-400 dark:disabled:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
             >
               {cargandoVistaPrevia ? (
                 <>
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  <Loader2 className="h-3 w-3 animate-spin" />
                   Cargando...
                 </>
               ) : (
                 <>
-                  <Eye className="h-3 w-3" />
+                  <Eye className="h-3 w-3 lg:h-4 lg:w-4" />
                   Vista Previa
                 </>
               )}
@@ -310,16 +394,16 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
             <button
               onClick={generarReporte}
               disabled={cargando}
-              className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
+              className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 disabled:bg-gray-400 dark:disabled:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
             >
               {cargando ? (
                 <>
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  <Loader2 className="h-3 w-3 animate-spin" />
                   Generando...
                 </>
               ) : (
                 <>
-                  <Download className="h-3 w-3" />
+                  <Download className="h-3 w-3 lg:h-4 lg:w-4" />
                   Descargar Excel
                 </>
               )}
@@ -330,25 +414,38 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
 
       {/* Modal de Filtros */}
       {mostrarFiltros && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-800">
-                Filtros - {titulo}
-              </h2>
+        <div
+          className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={cerrarFiltros}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 lg:p-6 border-b dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Filtros - {titulo}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Selecciona los filtros para el reporte
+                </p>
+              </div>
               <button
-                onClick={() => setMostrarFiltros(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={cerrarFiltros}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
               >
-                <span className="text-xl">×</span>
+                <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            {/* Contenido */}
+            <div className="p-4 lg:p-6 space-y-4">
               {/* Fechas */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <Calendar className="h-4 w-4 inline mr-1" />
                     Fecha Inicio
                   </label>
@@ -358,11 +455,11 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     onChange={(e) =>
                       setFiltros({ ...filtros, fecha_inicio: e.target.value })
                     }
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <Calendar className="h-4 w-4 inline mr-1" />
                     Fecha Fin
                   </label>
@@ -372,7 +469,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     onChange={(e) =>
                       setFiltros({ ...filtros, fecha_fin: e.target.value })
                     }
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
               </div>
@@ -383,7 +480,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                 tipo === "trabajadores" ||
                 tipo === "completo") && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <User className="h-4 w-4 inline mr-1" />
                     Trabajador
                   </label>
@@ -392,7 +489,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     onChange={(e) =>
                       setFiltros({ ...filtros, id_trabajador: e.target.value })
                     }
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
                     <option value="">Todos los trabajadores</option>
                     {trabajadores.map((trab) => (
@@ -415,7 +512,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                 tipo === "productos" ||
                 tipo === "completo") && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <Package className="h-4 w-4 inline mr-1" />
                     Producto
                   </label>
@@ -424,7 +521,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     onChange={(e) =>
                       setFiltros({ ...filtros, id_producto: e.target.value })
                     }
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
                     <option value="">Todos los productos</option>
                     {productos.map((prod) => (
@@ -439,7 +536,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
               {/* Método de Pago */}
               {(tipo === "ventas" || tipo === "completo") && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     💳 Método de Pago
                   </label>
                   <select
@@ -447,7 +544,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     onChange={(e) =>
                       setFiltros({ ...filtros, metodo_pago: e.target.value })
                     }
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
                     <option value="todos">Todos los métodos</option>
                     <option value="efectivo">Efectivo</option>
@@ -459,16 +556,12 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
               )}
 
               {/* Resumen de Filtros Activos */}
-              {(filtros.fecha_inicio ||
-                filtros.fecha_fin ||
-                filtros.id_trabajador ||
-                filtros.id_producto ||
-                filtros.metodo_pago !== "todos") && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm font-medium text-blue-800 mb-2">
+              {filtrosActivos && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
                     🎯 Filtros activos:
                   </p>
-                  <div className="text-xs text-blue-700 space-y-1">
+                  <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
                     {filtros.fecha_inicio && (
                       <p>• Desde: {filtros.fecha_inicio}</p>
                     )}
@@ -476,21 +569,17 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                     {filtros.id_trabajador && (
                       <p>
                         • Trabajador:{" "}
-                        {
-                          trabajadores.find(
-                            (t) => t.id_trabajador == filtros.id_trabajador
-                          )?.nombre_completo
-                        }
+                        {trabajadores.find(
+                          (t) => t.id_trabajador == filtros.id_trabajador
+                        )?.nombre_completo || "Seleccionado"}
                       </p>
                     )}
                     {filtros.id_producto && (
                       <p>
                         • Producto:{" "}
-                        {
-                          productos.find(
-                            (p) => p.id_producto == filtros.id_producto
-                          )?.nom_producto
-                        }
+                        {productos.find(
+                          (p) => p.id_producto == filtros.id_producto
+                        )?.nom_producto || "Seleccionado"}
                       </p>
                     )}
                     {filtros.metodo_pago !== "todos" && (
@@ -501,7 +590,7 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
               )}
 
               {/* Botones */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-wrap gap-2 pt-4">
                 <button
                   onClick={() =>
                     setFiltros({
@@ -513,29 +602,29 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                       incluir_detalles: true,
                     })
                   }
-                  className="flex-1 p-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 min-w-[100px] p-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
                 >
                   Limpiar
                 </button>
                 <button
-                  onClick={() => setMostrarFiltros(false)}
-                  className="flex-1 p-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={cerrarFiltros}
+                  className="flex-1 min-w-[100px] p-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={generarVistaPrevia}
                   disabled={cargandoVistaPrevia}
-                  className="flex-1 p-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:bg-gray-400"
+                  className="flex-1 min-w-[100px] p-3 bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 text-white rounded-lg transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-700 text-sm"
                 >
                   {cargandoVistaPrevia ? "Cargando..." : "Vista Previa"}
                 </button>
                 <button
                   onClick={generarReporte}
                   disabled={cargando}
-                  className="flex-1 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400"
+                  className="flex-1 min-w-[100px] p-3 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-700 text-sm"
                 >
-                  {cargando ? "Generando..." : "Aplicar"}
+                  {cargando ? "Generando..." : "Generar"}
                 </button>
               </div>
             </div>
@@ -545,29 +634,44 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
 
       {/* Modal de Vista Previa */}
       {mostrarVistaPrevia && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-800">
-                Vista Previa - {titulo}
-              </h2>
+        <div
+          className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={cerrarVistaPrevia}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 lg:p-6 border-b dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Vista Previa - {titulo}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {filtrosActivos
+                    ? "Datos con filtros aplicados"
+                    : "Todos los datos disponibles"}
+                </p>
+              </div>
               <button
-                onClick={() => setMostrarVistaPrevia(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={cerrarVistaPrevia}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
               >
-                <span className="text-xl">×</span>
+                <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
 
-            <div className="p-6">
+            {/* Contenido */}
+            <div className="p-4 lg:p-6">
               {/* Selector de tipo de vista */}
-              <div className="flex gap-2 mb-6">
+              <div className="flex flex-wrap gap-2 mb-6">
                 <button
                   onClick={() => setTipoVista("tabla")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm ${
                     tipoVista === "tabla"
                       ? "bg-blue-500 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   }`}
                 >
                   <Table className="h-4 w-4" />
@@ -575,10 +679,10 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
                 </button>
                 <button
                   onClick={() => setTipoVista("grafico")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm ${
                     tipoVista === "grafico"
                       ? "bg-blue-500 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   }`}
                 >
                   <BarChart3 className="h-4 w-4" />
@@ -595,36 +699,44 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
 
               {/* Información de resumen */}
               {vistaPreviaDatos && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-semibold mb-2">Resumen del Reporte</h4>
+                <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-gray-800 dark:text-white">
+                    Resumen del Reporte
+                  </h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Total registros:</span>
-                      <div className="font-semibold">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Total registros:
+                      </span>
+                      <div className="font-semibold text-gray-800 dark:text-gray-200">
                         {vistaPreviaDatos.total_registros || "N/A"}
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">Período:</span>
-                      <div className="font-semibold">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Período:
+                      </span>
+                      <div className="font-semibold text-gray-800 dark:text-gray-200">
                         {filtros.fecha_inicio || "Inicio"} -{" "}
                         {filtros.fecha_fin || "Fin"}
                       </div>
                     </div>
                     {vistaPreviaDatos.total_ventas && (
                       <div>
-                        <span className="text-gray-600">Total ventas:</span>
-                        <div className="font-semibold">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Total ventas:
+                        </span>
+                        <div className="font-semibold text-green-600 dark:text-green-400">
                           S/ {vistaPreviaDatos.total_ventas}
                         </div>
                       </div>
                     )}
                     {vistaPreviaDatos.promedio_eficiencia && (
                       <div>
-                        <span className="text-gray-600">
+                        <span className="text-gray-600 dark:text-gray-400">
                           Eficiencia promedio:
                         </span>
-                        <div className="font-semibold">
+                        <div className="font-semibold text-blue-600 dark:text-blue-400">
                           {vistaPreviaDatos.promedio_eficiencia}%
                         </div>
                       </div>
@@ -634,18 +746,19 @@ export function CardReporteFlexible({ titulo, descrip, tipo, icono }) {
               )}
 
               {/* Botones de acción */}
-              <div className="flex gap-3 mt-6">
+              <div className="flex flex-wrap gap-2 mt-6">
                 <button
-                  onClick={() => setMostrarVistaPrevia(false)}
-                  className="flex-1 p-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={cerrarVistaPrevia}
+                  className="flex-1 min-w-[100px] p-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
                 >
                   Cerrar
                 </button>
                 <button
                   onClick={generarReporte}
                   disabled={cargando}
-                  className="flex-1 p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-400"
+                  className="flex-1 min-w-[100px] p-3 bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-700 flex items-center justify-center gap-2 text-sm"
                 >
+                  <FileSpreadsheet className="h-4 w-4" />
                   {cargando ? "Generando..." : "Descargar Excel"}
                 </button>
               </div>

@@ -55,10 +55,13 @@ function App() {
 
   const handleLogin = (userData) => {
     console.log("📊 Datos del usuario recibidos:", userData);
+    // GUARDA el usuario COMPLETO, con modulos_acceso incluido
     setUser(userData);
-    if (userData.id_user) {
-      fetchUserModules(userData.id_user);
-    }
+
+    // ⚠️ CRÍTICO: Actualiza el estado userModules con los datos del usuario
+    setUserModules(userData.modulos_acceso || []);
+
+    console.log("✅ Módulos asignados a userModules:", userData.modulos_acceso);
   };
 
   const handleLogout = () => {
@@ -75,13 +78,35 @@ function App() {
       return true;
     }
 
-    if (!user || userModules.length === 0) return false;
+    // Si no hay usuario, denegar
+    if (!user) return false;
 
+    // ⚠️ IMPORTANTE: Administrador tiene acceso TOTAL
     if (user.tipo_usuario === "Administrador") {
+      console.log("🔓 Admin: Acceso concedido a", route);
       return true;
     }
 
-    return userModules.some((module) => module.ruta === route);
+    // Si no es admin, verifica módulos
+    // Usa userModules que ahora está sincronizado con user.modulos_acceso
+    if (userModules.length === 0) return false;
+
+    // Mapea rutas a nombres de módulo (como en Menu.jsx)
+    const routeToModuleMap = {
+      "/entregas": "Registro de salidas",
+      "/caja": "Caja",
+      "/reportes": "Reportes",
+      "/trabajadores": "Gestión de trabajadores",
+      "/conf": "Gestión de usuarios",
+    };
+
+    const moduleNameForRoute = routeToModuleMap[route];
+    if (!moduleNameForRoute) return false; // Ruta no reconocida
+
+    // Busca si el usuario tiene este módulo
+    return userModules.some(
+      (module) => module.nom_modulo === moduleNameForRoute
+    );
   };
 
   // Componente para rutas protegidas

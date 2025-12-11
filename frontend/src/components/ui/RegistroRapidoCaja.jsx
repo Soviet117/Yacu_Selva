@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Minus, Save, X } from "lucide-react";
+import { Plus, Minus, Save, X, User } from "lucide-react";
 import {
   registrarMovimientoCaja,
   obtenerTrabajadores,
@@ -29,9 +29,9 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
     setCargandoTrabajadores(true);
     try {
       const response = await obtenerTrabajadores();
-      setTrabajadores(response.data);
+      setTrabajadores(response.data || []);
 
-      if (response.data.length > 0 && !formData.id_trabajador) {
+      if (response.data?.length > 0 && !formData.id_trabajador) {
         setFormData((prev) => ({
           ...prev,
           id_trabajador: response.data[0].id_trabajador,
@@ -39,7 +39,6 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
       }
     } catch (error) {
       console.error("Error cargando trabajadores:", error);
-      alert("Error al cargar la lista de trabajadores");
     } finally {
       setCargandoTrabajadores(false);
     }
@@ -53,11 +52,20 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
       return;
     }
 
+    if (!formData.monto || parseFloat(formData.monto) <= 0) {
+      alert("Por favor ingresa un monto válido");
+      return;
+    }
+
+    if (!formData.descripcion.trim()) {
+      alert("Por favor ingresa una descripción");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await registrarMovimientoCaja(formData);
-      console.log("Movimiento registrado:", response.data);
+      await registrarMovimientoCaja(formData);
 
       onRegistroSuccess?.();
       setIsOpen(false);
@@ -70,15 +78,21 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
           trabajadores.length > 0 ? trabajadores[0].id_trabajador : "",
       });
 
-      alert("Movimiento registrado exitosamente!");
+      alert("✅ Movimiento registrado exitosamente!");
     } catch (error) {
       console.error("Error registrando movimiento:", error);
       alert(
-        "Error al registrar el movimiento: " +
+        "❌ Error al registrar el movimiento: " +
           (error.response?.data?.error || error.message)
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!loading) {
+      setIsOpen(false);
     }
   };
 
@@ -87,40 +101,52 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 z-50"
+        title="Nuevo movimiento"
       >
         <Plus className="h-6 w-6" />
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-gray-400 bg-opacity-75 flex items-center justify-center z-50 p-4">
-          {/* Cambios principales aquí - modal más compacto y responsive */}
-          <div className="bg-white rounded-2xl w-full max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
-            {/* Header más compacto */}
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-lg font-bold text-gray-800">
-                Nuevo Movimiento
-              </h2>
+        <div
+          className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={handleClose}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm mx-auto max-h-[90vh] overflow-y-auto shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 lg:p-6 border-b dark:border-gray-700">
+              <div>
+                <h2 className="text-lg lg:text-xl font-bold text-gray-800 dark:text-white">
+                  Nuevo Movimiento
+                </h2>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  Registro rápido de ingresos/egresos
+                </p>
+              </div>
               <button
-                onClick={() => !loading && setIsOpen(false)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={handleClose}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                 disabled={loading}
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 space-y-3">
+            <form onSubmit={handleSubmit} className="p-4 lg:p-6 space-y-4">
               {/* Trabajador Responsable */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <User className="h-4 w-4 inline mr-1" />
                   Trabajador Responsable *
                 </label>
                 {cargandoTrabajadores ? (
-                  <div className="p-2 text-xs border border-gray-300 rounded-lg text-gray-500">
+                  <div className="p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700">
                     Cargando trabajadores...
                   </div>
                 ) : trabajadores.length === 0 ? (
-                  <div className="p-2 text-xs border border-red-300 rounded-lg text-red-500 bg-red-50">
+                  <div className="p-3 text-sm border border-red-300 dark:border-red-600 rounded-lg text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20">
                     No hay trabajadores registrados
                   </div>
                 ) : (
@@ -132,7 +158,7 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                         id_trabajador: e.target.value,
                       })
                     }
-                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     required
                     disabled={loading}
                   >
@@ -151,36 +177,36 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
 
               {/* Tipo de Movimiento */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Tipo de Movimiento
                 </label>
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() =>
                       setFormData({ ...formData, tipo: "ingreso" })
                     }
                     disabled={loading}
-                    className={`p-2 text-xs rounded-lg border transition-all ${
+                    className={`p-3 text-sm rounded-lg border transition-all flex items-center justify-center gap-2 ${
                       formData.tipo === "ingreso"
-                        ? "border-green-500 bg-green-50 text-green-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        ? "border-green-500 dark:border-green-400 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                        : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"
                     } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    <Plus className="h-3 w-3 inline mr-1" />
+                    <Plus className="h-4 w-4" />
                     Ingreso
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, tipo: "egreso" })}
                     disabled={loading}
-                    className={`p-2 text-xs rounded-lg border transition-all ${
+                    className={`p-3 text-sm rounded-lg border transition-all flex items-center justify-center gap-2 ${
                       formData.tipo === "egreso"
-                        ? "border-red-500 bg-red-50 text-red-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                        : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"
                     } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    <Minus className="h-3 w-3 inline mr-1" />
+                    <Minus className="h-4 w-4" />
                     Egreso
                   </button>
                 </div>
@@ -188,7 +214,7 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
 
               {/* Monto */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Monto (S/.)
                 </label>
                 <input
@@ -199,7 +225,7 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                   onChange={(e) =>
                     setFormData({ ...formData, monto: e.target.value })
                   }
-                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="0.00"
                   required
                   disabled={loading}
@@ -208,26 +234,26 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
 
               {/* Método */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Método
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Método de Pago
                 </label>
                 <select
                   value={formData.metodo}
                   onChange={(e) =>
                     setFormData({ ...formData, metodo: e.target.value })
                   }
-                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   disabled={loading}
                 >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="yape">Yape</option>
-                  <option value="transferencia">Transferencia</option>
+                  <option value="efectivo">💵 Efectivo</option>
+                  <option value="yape">📱 Yape</option>
+                  <option value="transferencia">🏦 Transferencia</option>
                 </select>
               </div>
 
               {/* Descripción */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Descripción
                 </label>
                 <textarea
@@ -235,21 +261,21 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                   onChange={(e) =>
                     setFormData({ ...formData, descripcion: e.target.value })
                   }
-                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  rows="2"
-                  placeholder="Ej: Venta de bidones, Pago de servicios..."
+                  className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  rows="3"
+                  placeholder="Ej: Venta de bidones, Pago de servicios, Compra de materiales..."
                   required
                   disabled={loading}
                 />
               </div>
 
               {/* Botones */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleClose}
                   disabled={loading}
-                  className="flex-1 p-2 text-xs border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="flex-1 p-3 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
@@ -258,16 +284,16 @@ function RegistroRapidoCaja({ onRegistroSuccess }) {
                   disabled={
                     loading || !formData.id_trabajador || cargandoTrabajadores
                   }
-                  className="flex-1 p-2 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                  className="flex-1 p-3 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       Guardando...
                     </>
                   ) : (
                     <>
-                      <Save className="h-3 w-3" />
+                      <Save className="h-4 w-4" />
                       Registrar
                     </>
                   )}

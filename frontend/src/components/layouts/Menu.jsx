@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
+import { X, Menu as MenuIcon, LogOut, User, ChevronLeft } from "lucide-react";
 import NavListMenu from "../ui/NavListMenu";
 import EncabezadoMenu from "../ui/EncabezadoMenu";
-import { LogOut, User } from "lucide-react";
 import axios from "axios";
 
-function Menu({ onLogout, user, userModules = [] }) {
+function Menu({ onLogout, user, userModules = [], onCloseMenu }) {
   const [allowedModules, setAllowedModules] = useState(userModules || []);
   const [loadingModules, setLoadingModules] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const API_URL =
     import.meta.env.VITE_API_URL || "http://localhost:8000/database";
@@ -54,82 +55,146 @@ function Menu({ onLogout, user, userModules = [] }) {
     {
       url: "/inicio",
       text: "Inicio",
-      moduleName: "Dashboard",
+      moduleName: "Dashborad",
       alwaysShow: true,
+      icon: "🏠",
     },
-    { url: "/entregas", text: "Entregas", moduleName: "Registro de salidas" },
-    { url: "/caja", text: "Caja", moduleName: "Caja" },
-    { url: "/reportes", text: "Reportes", moduleName: "Reportes" },
+    {
+      url: "/entregas",
+      text: "Entregas",
+      moduleName: "Registro de salidas",
+      icon: "🚚",
+    },
+    {
+      url: "/caja",
+      text: "Caja",
+      moduleName: "Caja",
+      icon: "💰",
+    },
+    {
+      url: "/reportes",
+      text: "Reportes",
+      moduleName: "Reportes",
+      icon: "📊",
+    },
     {
       url: "/trabajadores",
       text: "Trabajadores",
-      moduleName: "Gestión de trabajadores",
+      moduleName: "Gestion de trabajadores",
+      icon: "👥",
     },
     {
       url: "/conf",
       text: "Configuraciones",
-      moduleName: "Gestión de usuarios",
+      moduleName: "Gestion de usuarios",
+      icon: "⚙️",
     },
   ];
 
   // Filtrar elementos del menú
   const filteredMenuItems = menuItems.filter((item) => {
-    // SIEMPRE mostrar Inicio
     if (item.alwaysShow) return true;
-
-    // Si es administrador, mostrar todo
-    if (user?.tipo_usuario === "Administrador") {
-      return true;
-    }
-
-    // Si aún está cargando, no mostrar (excepto inicio)
-    if (loadingModules) {
-      return false;
-    }
-
-    // Verificar si el módulo está en los permitidos
+    if (user?.tipo_usuario === "Administrador") return true;
+    if (loadingModules) return false;
     return allowedModules.some(
       (module) => module.nom_modulo === item.moduleName
     );
   });
 
   return (
-    <div className="h-screen flex flex-col bg-white shadow-xl border-r-2 border-gray-100 w-64">
+    <div
+      className={`h-screen flex flex-col bg-white dark:bg-gray-800 shadow-xl border-r-2 border-gray-100 dark:border-gray-700 ${
+        isCollapsed ? "w-16" : "w-64"
+      } transition-all duration-300`}
+    >
+      {/* Botón para colapsar/expandir (solo escritorio) */}
+      <div className="hidden lg:flex justify-end p-2">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <ChevronLeft
+            className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${
+              isCollapsed ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Botón cerrar para móvil */}
+      <div className="lg:hidden flex justify-end p-4">
+        <button
+          onClick={onCloseMenu}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        </button>
+      </div>
+
       <EncabezadoMenu
         span={"YS"}
         negocio={"Yacu Selva"}
         tipo={"Sistema de Gestión"}
+        isCollapsed={isCollapsed}
       />
 
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 px-2">
         {filteredMenuItems.map((item, index) => (
-          <NavListMenu key={index} url={item.url} text={item.text} />
+          <NavListMenu
+            key={index}
+            url={item.url}
+            text={item.text}
+            icon={item.icon}
+            isCollapsed={isCollapsed}
+            onClick={onCloseMenu}
+          />
         ))}
       </div>
 
-      {/* Sección de usuario - SIEMPRE visible */}
-      <div className="bg-gray-50 rounded-xl m-3 p-4 mt-auto border border-gray-200">
+      {/* Sección de usuario */}
+      <div
+        className={`bg-gray-50 dark:bg-gray-900 rounded-xl m-3 p-4 mt-auto border border-gray-200 dark:border-gray-700 ${
+          isCollapsed ? "hidden" : "block"
+        }`}
+      >
         <div className="flex items-center space-x-3 mb-2">
           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
             <User className="h-4 w-4 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-800 truncate">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
               {userData.nombre}
             </p>
-            <p className="text-xs text-gray-500 truncate">{userData.rol}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {userData.rol}
+            </p>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mb-3">{userData.email}</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
+          {userData.email}
+        </p>
 
         <button
           onClick={onLogout}
-          className="w-full flex items-center justify-center space-x-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className="w-full flex items-center justify-center space-x-2 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
         >
           <LogOut className="h-4 w-4" />
           <span>Cerrar Sesión</span>
         </button>
       </div>
+
+      {/* Versión colapsada del usuario */}
+      {isCollapsed && (
+        <div className="m-3">
+          <button
+            onClick={onLogout}
+            className="w-full p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex justify-center"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
